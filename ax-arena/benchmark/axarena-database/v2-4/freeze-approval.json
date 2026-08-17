@@ -1,0 +1,14 @@
+{
+  "schema": "ax.daeb-v2-4-methodology-freeze-approval/v1",
+  "status": "approved-and-frozen",
+  "approved_by": "workspace owner (explicit V2.4 publication-closure authorization)",
+  "scope": "J01 aggregation and evidence-status correction only; a non-unanimous primary stage is not required when other predeclared diagnostic dimensions differ. V2.3 task packs, prompts, vendor scope, and independent oracles are unchanged.",
+  "models": [
+    "google/gemini-3.7-flash-20260813 via google-vertex",
+    "qwen/qwen3.8-27b-20260814 via akashml",
+    "meta/muse-spark-1.2 via meta",
+    "z-ai/glm-5.2-20260616 via z-ai"
+  ],
+  "trials_per_model": 2,
+  "publication_boundary": "Two-model, two-trial diagnostic release; not a universal product leaderboard."
+}

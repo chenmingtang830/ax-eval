@@ -1,0 +1,53 @@
+{
+  "schema": "ax.daeb-v2-1-production-gate-report/v1",
+  "suite": "DAEB-2-CLI-V2.1-Harness-Neutral",
+  "status": "blocked",
+  "frozen": false,
+  "approved": false,
+  "formal_run_started": false,
+  "baseline_preserved": true,
+  "candidate_count": 16,
+  "candidate_task_fit_at_least_5_of_6": 12,
+  "candidate_strict_verifier_ready": 12,
+  "family_quota_feasible": true,
+  "calibration_plan": {
+    "planned_invocations": 288,
+    "structural_na_cells": 87,
+    "status": "planned-not-run"
+  },
+  "pack_readiness": {
+    "ready_vendor_task_tuples": 67,
+    "blocked_supported_tuples": 0,
+    "structural_na_or_not_admitted_tuples": 29
+  },
+  "docs_sources": { "ok": 26, "total": 26 },
+  "harness_pins": {
+    "pi": "0.84.2",
+    "opencode": "1.18.18"
+  },
+  "route_preflight": {
+    "glm": "pass",
+    "gemini": "pass-with-data-policy-allow",
+    "deepseek": "blocked-workspace-guardrail"
+  },
+  "gates": {
+    "docs": "audit-only",
+    "support": "pass-for-admitted-tuples",
+    "oracle": "pass-for-admitted-tuples",
+    "witness": "pass-for-admitted-tuples",
+    "calibration": "blocked",
+    "review": "pass-delegated-maintainer-review"
+  },
+  "tests": {
+    "core": { "files": 59, "tests": 572, "status": "pass" },
+    "arena": { "files": 57, "tests": 332, "status": "pass" },
+    "typecheck": "pass",
+    "build": "pass"
+  },
+  "next_required": [
+    "Have an account/workspace admin inspect the OpenRouter privacy/guardrail policy; the current inference key is not a management key and no setting was changed automatically.",
+    "Keep the Gemini Google Vertex route on the explicit data_collection: allow policy and preserve its clean r6 probe.",
+    "Repair the exact DeepSeek route privacy/guardrail policy in the isolated OpenRouter workspace.",
+    "Run Pi trial-1 calibration and freeze only with real gate hashes."
+  ]
+}

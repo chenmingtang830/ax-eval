@@ -1,0 +1,83 @@
+{
+  "schema": "ax.daeb-v2-3-pack-approval/v1",
+  "status": "approved",
+  "reviewer": "workspace owner (explicit final V2.3 exact-file approval)",
+  "approved_at": "2026-08-17T02:13:23.513Z",
+  "review_sha256": "0e9376f7f6baa86796a772a36401b8840126e0c9760412c407f111dc0c500459",
+  "suite_sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15",
+  "sidecars": {
+    "cockroachdb": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/cockroachdb/pack.yaml",
+      "pack_sha256": "55ea3712e05ca65095b53834d39712d26c6e63e73201c95ccad9377bb19555b4",
+      "approval": {
+        "standard_set_version": "daeb-2-3-cli-vendor-experience-v1",
+        "content_hash": "33428bd752879fdc",
+        "pack_file_hash": "55ea3712e05ca65095b53834d39712d26c6e63e73201c95ccad9377bb19555b4",
+        "approved_by": "workspace owner (explicit final V2.3 exact-file approval)",
+        "approved_at": "2026-08-17T02:13:23.493Z",
+        "task_count": 6
+      }
+    },
+    "insforge": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/insforge/pack.yaml",
+      "pack_sha256": "4bfcbbad8c84e25b88fb45717048bd45c2cc84bcbbe4db07cb8f18d38fb84d19",
+      "approval": {
+        "standard_set_version": "daeb-2-3-cli-vendor-experience-v1",
+        "content_hash": "b7a2d62dc21e6798",
+        "pack_file_hash": "4bfcbbad8c84e25b88fb45717048bd45c2cc84bcbbe4db07cb8f18d38fb84d19",
+        "approved_by": "workspace owner (explicit final V2.3 exact-file approval)",
+        "approved_at": "2026-08-17T02:13:23.504Z",
+        "task_count": 6
+      }
+    },
+    "neon": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/neon/pack.yaml",
+      "pack_sha256": "b987ba13465329d66ebef58c77251388dd0490229e0d2029c5d31480e462cee9",
+      "approval": {
+        "standard_set_version": "daeb-2-3-cli-vendor-experience-v1",
+        "content_hash": "f504a77cd29536fa",
+        "pack_file_hash": "b987ba13465329d66ebef58c77251388dd0490229e0d2029c5d31480e462cee9",
+        "approved_by": "workspace owner (explicit final V2.3 exact-file approval)",
+        "approved_at": "2026-08-17T02:13:23.506Z",
+        "task_count": 6
+      }
+    },
+    "nile": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/nile/pack.yaml",
+      "pack_sha256": "1dae3ced278e51aaa2b1274bd3ac2be290d7be445a6f0c35030598f8a25647bb",
+      "approval": {
+        "standard_set_version": "daeb-2-3-cli-vendor-experience-v1",
+        "content_hash": "ba82002bed98ef72",
+        "pack_file_hash": "1dae3ced278e51aaa2b1274bd3ac2be290d7be445a6f0c35030598f8a25647bb",
+        "approved_by": "workspace owner (explicit final V2.3 exact-file approval)",
+        "approved_at": "2026-08-17T02:13:23.509Z",
+        "task_count": 6
+      }
+    },
+    "supabase": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/supabase/pack.yaml",
+      "pack_sha256": "25193a584552c0abeca8bbe5328fc75d19f405cdf378425766a4d767edeea1c5",
+      "approval": {
+        "standard_set_version": "daeb-2-3-cli-vendor-experience-v1",
+        "content_hash": "419b95eafc9ed3c9",
+        "pack_file_hash": "25193a584552c0abeca8bbe5328fc75d19f405cdf378425766a4d767edeea1c5",
+        "approved_by": "workspace owner (explicit final V2.3 exact-file approval)",
+        "approved_at": "2026-08-17T02:13:23.511Z",
+        "task_count": 6
+      }
+    },
+    "turso": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/turso/pack.yaml",
+      "pack_sha256": "c3741ca095a73f10237fa59a500d82f6f8d67ad3304a2299dcc765d73010c32f",
+      "approval": {
+        "standard_set_version": "daeb-2-3-cli-vendor-experience-v1",
+        "content_hash": "d94e429d6f989d5e",
+        "pack_file_hash": "c3741ca095a73f10237fa59a500d82f6f8d67ad3304a2299dcc765d73010c32f",
+        "approved_by": "workspace owner (explicit final V2.3 exact-file approval)",
+        "approved_at": "2026-08-17T02:13:23.513Z",
+        "task_count": 6
+      }
+    }
+  },
+  "path_normalization": "Repository-relative paths replace workstation-absolute paths; approved pack and contract bytes are unchanged."
+}

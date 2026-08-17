@@ -1,0 +1,177 @@
+{
+  "schema": "ax.daeb-v2-3-freeze-review/v1",
+  "status": "reviewed-and-approved",
+  "suite": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/vendor-experience-suite.yaml",
+    "sha256": "d132057a3649b488302ad6dd71820e61f60e8a550d6bc91402dc2fe727c830e0",
+    "schema": "ax.daeb-v2-3-vendor-experience-suite/v1",
+    "current_status": "frozen"
+  },
+  "contract_change_ledger": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/contract-change-ledger.yaml",
+    "sha256": "b71e3d9804a36ae4443bf029de215c3f3f07ed3391d5706377e8c288afc2a5cf"
+  },
+  "packs": {
+    "cockroachdb": {
+      "path": "ax-arena/benchmark/axarena-database/v2-1/packs/cockroachdb/pack.yaml",
+      "sha256": "979e29b9c75774fa625918777037f7066261c32cdb210d103fb084fe2840e0cf",
+      "human_approved": true
+    },
+    "insforge": {
+      "path": "ax-arena/benchmark/axarena-database/v2-1/packs/insforge/pack.yaml",
+      "sha256": "b3b4050b0ecbc5334e5b06ad37d78d4e4f18aaa1c038d01bacf2b5f576a219c3",
+      "human_approved": true
+    },
+    "neon": {
+      "path": "ax-arena/benchmark/axarena-database/v2-1/packs/neon/pack.yaml",
+      "sha256": "33cd92fdf0526a5e9b2bcbf946060979126502f4a39012c61fc43e79046298f4",
+      "human_approved": true
+    },
+    "nile": {
+      "path": "ax-arena/benchmark/axarena-database/v2-1/packs/nile/pack.yaml",
+      "sha256": "45f091f0e58b0372cf6ca9b30e2fda2e4026b94ae10d4fddf43beb8807d119bb",
+      "human_approved": true
+    },
+    "supabase": {
+      "path": "ax-arena/benchmark/axarena-database/v2-1/packs/supabase/pack.yaml",
+      "sha256": "0d6ebd50027a8152e2a273ab3f3ad5b19260a85b23f43539544677fa3c0b40d1",
+      "human_approved": true
+    },
+    "turso": {
+      "path": "ax-arena/benchmark/axarena-database/v2-1/packs/turso/pack.yaml",
+      "sha256": "f21de4da5ffe2d6ee8a4bd77612b3a86824dd19a0b5b1ecf0a6f3912ae12bac5",
+      "human_approved": true
+    }
+  },
+  "task_matrix": [
+    {
+      "task_id": "db-T17-cli-session-discovery",
+      "family": "discovery",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase"
+      ],
+      "structural_na_vendors": [
+        "turso"
+      ]
+    },
+    {
+      "task_id": "db-T21-cli-principal-continuity",
+      "family": "identity",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase"
+      ],
+      "structural_na_vendors": [
+        "turso"
+      ]
+    },
+    {
+      "task_id": "db-T18-constraint-preservation",
+      "family": "safety",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase"
+      ],
+      "structural_na_vendors": [
+        "turso"
+      ]
+    },
+    {
+      "task_id": "db-T19-transactional-record-recovery",
+      "family": "recovery",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase"
+      ],
+      "structural_na_vendors": [
+        "turso"
+      ]
+    },
+    {
+      "task_id": "db-T20-aggregate-query",
+      "family": "query",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase"
+      ],
+      "structural_na_vendors": [
+        "turso"
+      ]
+    },
+    {
+      "task_id": "db-T22-negative-query-verification",
+      "family": "verification",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase"
+      ],
+      "structural_na_vendors": [
+        "turso"
+      ]
+    },
+    {
+      "task_id": "db-J01-native-journey",
+      "family": "end-to-end",
+      "admitted_vendors": [
+        "cockroachdb",
+        "insforge",
+        "neon",
+        "nile",
+        "supabase",
+        "turso"
+      ],
+      "structural_na_vendors": []
+    }
+  ],
+  "evidence_roots": [
+    {
+      "path": "results/v23-gemini-3.7-flash-20260816-atomic-t1",
+      "exists": true
+    },
+    {
+      "path": "results/v23-gemini-3.7-flash-20260816-atomic-t1-rest",
+      "exists": true
+    },
+    {
+      "path": "results/v23-gemini-3.7-flash-20260816-predicate-r2",
+      "exists": true
+    },
+    {
+      "path": "results/v23-gemini-3.7-flash-20260816-t19-contract-r4",
+      "exists": true
+    },
+    {
+      "path": "results/v23-gemini-3.7-flash-20260816-t19-contract-r5",
+      "exists": true
+    }
+  ],
+  "required_human_decisions": [
+    "Confirm each post-change task prompt and independent oracle is a fair, disclosed task contract.",
+    "Confirm Turso T18/T19/T20 remain structural-na until an independent verifier is implemented.",
+    "Approve the exact source-pack hashes shown here; any later pack edit invalidates this packet."
+  ],
+  "nonnegotiable_before_freeze": [
+    "Two clean, post-change trials for every admitted vendor-task tuple.",
+    "At least the declared model strata, each provider-pinned with fallback disabled.",
+    "No unresolved task-quality, route, cleanup, or predicate-evidence blocker."
+  ]
+}

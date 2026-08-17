@@ -1,0 +1,969 @@
+schema: ax.daeb-v2-witness-plan/v1
+benchmark: axarena-database
+version: 2
+source_version: daeb-1-v1
+generated_at: 2026-08-12T15:52:07.966Z
+status: draft
+mode: cli-only
+task_source_status: v1-intent+official-cli-doc-refresh+target-capability-exclusions
+excluded_vendors:
+  - supabase
+contracts:
+  - id: cockroachdb/cli
+    vendor: cockroachdb
+    surface: cli
+    endpoint_class: cockroach-sql-wire
+    agent_credentials:
+      - COCKROACH_CONNECTION_STRING
+    setup_mode: sql_wire
+    verifier_mode: independent_sql
+    cleanup_mode: namespaced_sql
+    notes:
+      - Requires an admin-capable disposable SQL user or admitted reset provider.
+  - id: insforge/cli
+    vendor: insforge
+    surface: cli
+    endpoint_class: postgres-sql-wire
+    agent_credentials:
+      - INSFORGE_CONNECTION_STRING
+    setup_mode: sql_wire
+    verifier_mode: independent_sql
+    cleanup_mode: namespaced_sql
+    notes:
+      - v1's admitted CLI adapter is psql against the disposable InsForge
+        PostgreSQL data plane; management REST/API calls are out of scope.
+  - id: neon/cli
+    vendor: neon
+    surface: cli
+    endpoint_class: postgres-sql-wire
+    agent_credentials:
+      - NEON_DATABASE_URL
+    setup_mode: sql_wire
+    verifier_mode: independent_sql
+    cleanup_mode: namespaced_sql
+    notes:
+      - Management API credentials and SQL connection credentials are separate.
+  - id: nile/cli
+    vendor: nile
+    surface: cli
+    endpoint_class: postgres-sql-wire
+    agent_credentials:
+      - NILE_DATABASE_URL
+    setup_mode: sql_wire
+    verifier_mode: independent_sql
+    cleanup_mode: namespaced_sql
+    notes:
+      - Preflight must prove NILE_DB matches the disposable database in the URL.
+  - id: turso/cli
+    vendor: turso
+    surface: cli
+    endpoint_class: turso-cli-and-sql-over-http
+    agent_credentials:
+      - TURSO_ORG_API_TOKEN
+      - TURSO_DATABASE_AUTH_TOKEN
+    setup_mode: sql_http
+    verifier_mode: same_sql_http
+    cleanup_mode: namespaced_sql
+    notes:
+      - T01 is excluded from the CLI-only candidate set until denied-token
+        capability is separately witnessed.
+entries:
+  - vendor: cockroachdb
+    task_id: db-T01-access-control
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T01-access-control
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T01-access-control/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T01-access-control/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>; cockroach sql --url <COCKROACH_CONNECTION_STRING>
+          --format=tsv --execute <sql>
+        artifact: cells/cockroachdb/db-T01-access-control/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T01-access-control/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: 07d236e6ada632fd6cc24fa6d818c8cb524107cced494cb00fe0e1d691835323
+  - vendor: cockroachdb
+    task_id: db-T02-evolve-schema
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T02-evolve-schema
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T02-evolve-schema/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T02-evolve-schema/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T02-evolve-schema/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T02-evolve-schema/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: d76fb51dd12125bc52a04b8c26942327cebb97776ce1eacb962da0315b002a4e
+  - vendor: cockroachdb
+    task_id: db-T03-inspect-schema
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T03-inspect-schema
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T03-inspect-schema/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T03-inspect-schema/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T03-inspect-schema/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T03-inspect-schema/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: 2cc124a596a7d2be2f826c2c3371d2cc96cc3ec543237f0480ea1c41f6aaf537
+  - vendor: cockroachdb
+    task_id: db-T04-query-records
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T04-query-records
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T04-query-records/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T04-query-records/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T04-query-records/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T04-query-records/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: 9a36b021a1280e2465e81c14f334067f79ae936eea6a5f082fdae0535a6c00ff
+  - vendor: cockroachdb
+    task_id: db-T05-vector-search
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T05-vector-search
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T05-vector-search/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T05-vector-search/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T05-vector-search/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T05-vector-search/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: db4ff1b5af04e42c4eb7c6e78181c3ce38d33cc5ba820c763c7cb519565e92ff
+  - vendor: cockroachdb
+    task_id: db-T06-write-records
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T06-write-records
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T06-write-records/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T06-write-records/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T06-write-records/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T06-write-records/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: a3432cad656245bfcca39a6ef401e51b133ab98ec97afd3a42824929459d36fc
+  - vendor: cockroachdb
+    task_id: db-T07-full-text-search
+    surface: cli
+    contract_id: cockroachdb/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/cockroachdb/db-T07-full-text-search
+    proof:
+      setup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T07-full-text-search/setup.json
+      mutation:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T07-full-text-search/mutation.json
+      verify:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T07-full-text-search/verify.json
+      cleanup:
+        status: passed
+        command: cockroach sql --url <COCKROACH_CONNECTION_STRING> --format=tsv
+          --execute <sql>
+        artifact: cells/cockroachdb/db-T07-full-text-search/cleanup.json
+      source_sha256: 2e1c99a9d13037256fa0443b05b832339b12961e0e696b0379587363e6b2b90e
+      bundle_sha256: b10509f44e53b22cba93cf6c3e7b9bf7b3fc743e231abd54faf06e02712e3e31
+  - vendor: insforge
+    task_id: db-T01-access-control
+    surface: cli
+    contract_id: insforge/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/insforge/db-T01-access-control
+    proof:
+      setup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T01-access-control/setup.json
+      mutation:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T01-access-control/mutation.json
+      verify:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>;
+          psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T01-access-control/verify.json
+      cleanup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T01-access-control/cleanup.json
+      source_sha256: 50fa9ef9e5500c019f06bd9866298ef39563b891c8acc586118227423ec744b7
+      bundle_sha256: 22c8b9e8c11c0e5bdf7f62c9cc82f6eb19f866aaf8d9575a07a58cd76029860d
+  - vendor: insforge
+    task_id: db-T02-evolve-schema
+    surface: cli
+    contract_id: insforge/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/insforge/db-T02-evolve-schema
+    proof:
+      setup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T02-evolve-schema/setup.json
+      mutation:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T02-evolve-schema/mutation.json
+      verify:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T02-evolve-schema/verify.json
+      cleanup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T02-evolve-schema/cleanup.json
+      source_sha256: 50fa9ef9e5500c019f06bd9866298ef39563b891c8acc586118227423ec744b7
+      bundle_sha256: 04c568c5550a5a31130b487dc355890a6adfc4bf87a4861ed12323d4ff0a6d7d
+  - vendor: insforge
+    task_id: db-T04-query-records
+    surface: cli
+    contract_id: insforge/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/insforge/db-T04-query-records
+    proof:
+      setup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T04-query-records/setup.json
+      mutation:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T04-query-records/mutation.json
+      verify:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T04-query-records/verify.json
+      cleanup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T04-query-records/cleanup.json
+      source_sha256: 50fa9ef9e5500c019f06bd9866298ef39563b891c8acc586118227423ec744b7
+      bundle_sha256: 54447f89f2630299ace843088a4fb0a7f3041e6075b361eda51580cd05d13fc6
+  - vendor: insforge
+    task_id: db-T05-vector-search
+    surface: cli
+    contract_id: insforge/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/insforge/db-T05-vector-search
+    proof:
+      setup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T05-vector-search/setup.json
+      mutation:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T05-vector-search/mutation.json
+      verify:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T05-vector-search/verify.json
+      cleanup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T05-vector-search/cleanup.json
+      source_sha256: 50fa9ef9e5500c019f06bd9866298ef39563b891c8acc586118227423ec744b7
+      bundle_sha256: 8ff1affd4c1c274cb0e842253ffe1edfb2a3ed5a81a521126184cea7da1fd69c
+  - vendor: insforge
+    task_id: db-T06-write-records
+    surface: cli
+    contract_id: insforge/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/insforge/db-T06-write-records
+    proof:
+      setup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T06-write-records/setup.json
+      mutation:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T06-write-records/mutation.json
+      verify:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T06-write-records/verify.json
+      cleanup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T06-write-records/cleanup.json
+      source_sha256: 50fa9ef9e5500c019f06bd9866298ef39563b891c8acc586118227423ec744b7
+      bundle_sha256: 5b63db41683bacf5f4bc38b5c3f5b4c4b444849e48e7d0b36dfae995594f79aa
+  - vendor: neon
+    task_id: db-T01-access-control
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T01-access-control
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T01-access-control/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T01-access-control/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>; psql
+          <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T01-access-control/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T01-access-control/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: 325a3df0381e8398ce6798b7262bbaaaaf5a942c7c6b13c0f0e53f5aedaad919
+  - vendor: neon
+    task_id: db-T02-evolve-schema
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T02-evolve-schema
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T02-evolve-schema/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T02-evolve-schema/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T02-evolve-schema/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T02-evolve-schema/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: 039f14714ac947f16810cdbd89a3c51453fa1469c0434002f9fde8f30dfd571d
+  - vendor: neon
+    task_id: db-T03-inspect-schema
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T03-inspect-schema
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T03-inspect-schema/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T03-inspect-schema/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T03-inspect-schema/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T03-inspect-schema/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: b7ec744d08075ad0290272fb184431d0a11d758407ffb25997274d19048dc83c
+  - vendor: neon
+    task_id: db-T04-query-records
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T04-query-records
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T04-query-records/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T04-query-records/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T04-query-records/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T04-query-records/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: 7f8ff81c60b4f90b201d092d597f0800b4568cef36d7b6e99d336dc6f6fc8b6e
+  - vendor: neon
+    task_id: db-T05-vector-search
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T05-vector-search
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T05-vector-search/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T05-vector-search/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T05-vector-search/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T05-vector-search/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: a303aa38c1286dbfd787659fc1dad5af9a3a9a9c5e9b0e5829d1386df1c1b16d
+  - vendor: neon
+    task_id: db-T06-write-records
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T06-write-records
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T06-write-records/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T06-write-records/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T06-write-records/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T06-write-records/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: 51f45779e208a041fe62014d00f7ab7051502bc0124a4b0e05e8f3aa99474b27
+  - vendor: neon
+    task_id: db-T07-full-text-search
+    surface: cli
+    contract_id: neon/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/neon/db-T07-full-text-search
+    proof:
+      setup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T07-full-text-search/setup.json
+      mutation:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T07-full-text-search/mutation.json
+      verify:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T07-full-text-search/verify.json
+      cleanup:
+        status: passed
+        command: psql <NEON_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/neon/db-T07-full-text-search/cleanup.json
+      source_sha256: cd550a9d0fc05eed2a4944295283d68810d58c525338d7f86be39d7ef6f7de61
+      bundle_sha256: 8e50e1d550ce6f4bb35d2aa125c9d7a743fd1414844ec027d07cc17a87a45d38
+  - vendor: nile
+    task_id: db-T02-evolve-schema
+    surface: cli
+    contract_id: nile/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/nile/db-T02-evolve-schema
+    proof:
+      setup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T02-evolve-schema/setup.json
+      mutation:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T02-evolve-schema/mutation.json
+      verify:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T02-evolve-schema/verify.json
+      cleanup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T02-evolve-schema/cleanup.json
+      source_sha256: 6ea2d88a6b869bc496477b2a7e9a12b4dac4bbc8d8f7a18967dd51a67f78ed60
+      bundle_sha256: 7eefc6c74fb559c206a468a6ad228f27a5364d470256542c79fe49235f661dee
+  - vendor: nile
+    task_id: db-T03-inspect-schema
+    surface: cli
+    contract_id: nile/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/nile/db-T03-inspect-schema
+    proof:
+      setup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T03-inspect-schema/setup.json
+      mutation:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T03-inspect-schema/mutation.json
+      verify:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T03-inspect-schema/verify.json
+      cleanup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T03-inspect-schema/cleanup.json
+      source_sha256: 6ea2d88a6b869bc496477b2a7e9a12b4dac4bbc8d8f7a18967dd51a67f78ed60
+      bundle_sha256: 2a4845dfe67b6a4449156c34be40d65ed7a87d07496c012d8daa7bdbd2db9099
+  - vendor: nile
+    task_id: db-T04-query-records
+    surface: cli
+    contract_id: nile/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/nile/db-T04-query-records
+    proof:
+      setup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T04-query-records/setup.json
+      mutation:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T04-query-records/mutation.json
+      verify:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T04-query-records/verify.json
+      cleanup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T04-query-records/cleanup.json
+      source_sha256: 6ea2d88a6b869bc496477b2a7e9a12b4dac4bbc8d8f7a18967dd51a67f78ed60
+      bundle_sha256: 78b11559bab5be4990d0fcd1a101e4b7fc5ad958c225088abca2e0231e8a73e2
+  - vendor: nile
+    task_id: db-T05-vector-search
+    surface: cli
+    contract_id: nile/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/nile/db-T05-vector-search
+    proof:
+      setup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T05-vector-search/setup.json
+      mutation:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T05-vector-search/mutation.json
+      verify:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T05-vector-search/verify.json
+      cleanup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T05-vector-search/cleanup.json
+      source_sha256: 6ea2d88a6b869bc496477b2a7e9a12b4dac4bbc8d8f7a18967dd51a67f78ed60
+      bundle_sha256: ea42eb817db532c721656973a9a25cc2de629456c46c11d1da1d5442eaf90086
+  - vendor: nile
+    task_id: db-T06-write-records
+    surface: cli
+    contract_id: nile/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/nile/db-T06-write-records
+    proof:
+      setup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T06-write-records/setup.json
+      mutation:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T06-write-records/mutation.json
+      verify:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T06-write-records/verify.json
+      cleanup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T06-write-records/cleanup.json
+      source_sha256: 6ea2d88a6b869bc496477b2a7e9a12b4dac4bbc8d8f7a18967dd51a67f78ed60
+      bundle_sha256: 9193e13cae3bd7f7137f60f1fc0d249b4d25393bf279a1019ff6226903e4cd1a
+  - vendor: nile
+    task_id: db-T07-full-text-search
+    surface: cli
+    contract_id: nile/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/nile/db-T07-full-text-search
+    proof:
+      setup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T07-full-text-search/setup.json
+      mutation:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T07-full-text-search/mutation.json
+      verify:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T07-full-text-search/verify.json
+      cleanup:
+        status: passed
+        command: psql <NILE_DATABASE_URL> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/nile/db-T07-full-text-search/cleanup.json
+      source_sha256: 6ea2d88a6b869bc496477b2a7e9a12b4dac4bbc8d8f7a18967dd51a67f78ed60
+      bundle_sha256: f97cca29b1b01a799caf31df8373faed9672fb79d42b038d9bce5be012fc7810
+  - vendor: turso
+    task_id: db-T02-evolve-schema
+    surface: cli
+    contract_id: turso/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T02-evolve-schema
+    proof:
+      setup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T02-evolve-schema/setup.json
+      mutation:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T02-evolve-schema/mutation.json
+      verify:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T02-evolve-schema/verify.json
+      cleanup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T02-evolve-schema/cleanup.json
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: a392ebd1c24f6703c8bf4ecbaf89be4b64d31c99bf3d6954da63282ae9d8457d
+  - vendor: turso
+    task_id: db-T03-inspect-schema
+    surface: cli
+    contract_id: turso/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T03-inspect-schema
+    proof:
+      setup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T03-inspect-schema/setup.json
+      mutation:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T03-inspect-schema/mutation.json
+      verify:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T03-inspect-schema/verify.json
+      cleanup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T03-inspect-schema/cleanup.json
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: 3ae2a9977060ebd19011fe8e5012ac0ac0fe706c5ca3c9763ad90943037182f3
+  - vendor: turso
+    task_id: db-T04-query-records
+    surface: cli
+    contract_id: turso/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T04-query-records
+    proof:
+      setup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T04-query-records/setup.json
+      mutation:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T04-query-records/mutation.json
+      verify:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T04-query-records/verify.json
+      cleanup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T04-query-records/cleanup.json
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: ef7a305627a847f7aa4bb583b69d57186948b47dc68d03ed971007dc59d59b30
+  - vendor: turso
+    task_id: db-T05-vector-search
+    surface: cli
+    contract_id: turso/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T05-vector-search
+    proof:
+      setup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T05-vector-search/setup.json
+      mutation:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T05-vector-search/mutation.json
+      verify:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T05-vector-search/verify.json
+      cleanup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T05-vector-search/cleanup.json
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: c6dd5e5b2841cfc62a9d03fe955a0aecdae5a514474460c4a13c1f5faf064c38
+  - vendor: turso
+    task_id: db-T06-write-records
+    surface: cli
+    contract_id: turso/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T06-write-records
+    proof:
+      setup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T06-write-records/setup.json
+      mutation:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T06-write-records/mutation.json
+      verify:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T06-write-records/verify.json
+      cleanup:
+        status: passed
+        command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
+        artifact: cells/turso/db-T06-write-records/cleanup.json
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: 09a612b1286174c7d25314cc23fc53a2dab95a951fd159851f5b729ee93c199e
+  - vendor: insforge
+    task_id: db-T03-inspect-schema
+    surface: cli
+    contract_id: insforge/cli
+    disposition: passed
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    evidence:
+      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/insforge/db-T03-inspect-schema
+    proof:
+      setup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T03-inspect-schema/setup.json
+      mutation:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T03-inspect-schema/mutation.json
+      verify:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T03-inspect-schema/verify.json
+      cleanup:
+        status: passed
+        command: psql <INSFORGE_CONNECTION_STRING> -X -v ON_ERROR_STOP=1 -At -c <sql>
+        artifact: cells/insforge/db-T03-inspect-schema/cleanup.json
+      source_sha256: 50fa9ef9e5500c019f06bd9866298ef39563b891c8acc586118227423ec744b7
+      bundle_sha256: 76074b811e4821492d945bac52d1e0e2c1a0a385806106fe15d2064057b4b892

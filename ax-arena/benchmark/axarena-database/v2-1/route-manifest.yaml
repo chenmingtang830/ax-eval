@@ -1,0 +1,31 @@
+schema: ax.daeb-v2-1-route-manifest/v1
+gateway: openrouter
+reasoning_effort: high
+allow_fallbacks: false
+provider_fallback: false
+byok_priority_override: false
+batch: false
+data_collection: allow
+harnesses:
+  pi:
+    executable: pi
+    version: 0.84.2
+  opencode:
+    executable: opencode
+    version: 1.18.18
+models:
+  - requested_model: google/gemini-3.7-flash-20260813
+    canonical_model: google/gemini-3.7-flash-20260813
+    provider_only: [google-vertex]
+    provider_order: [google-vertex]
+    data_collection: allow
+  - requested_model: deepseek/deepseek-v4-flash-20260731
+    canonical_model: deepseek/deepseek-v4-flash-20260731
+    provider_only: [deepseek]
+    provider_order: [deepseek]
+    data_collection: allow
+  - requested_model: z-ai/glm-5.2-20260616
+    canonical_model: z-ai/glm-5.2-20260616
+    provider_only: [z-ai]
+    provider_order: [z-ai]
+    data_collection: allow

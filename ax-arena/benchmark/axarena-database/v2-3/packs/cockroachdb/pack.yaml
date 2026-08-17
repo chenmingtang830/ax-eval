@@ -1,0 +1,349 @@
+name: cockroachdb
+version: 2.3-frozen
+standard_set_version: daeb-2-3-cli-vendor-experience-v1
+run_id: daeb23-cockroachdb
+generated_by: v2-3-frozen-task-subset-derivation
+generator:
+  harness: claude-code
+  model: deterministic
+  effort: high
+  prompt_version: compose-pack-cli-doc-refresh-v1
+  source_docs:
+    - https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+    - https://www.cockroachlabs.com/docs/stable/security-reference/authorization
+    - https://www.cockroachlabs.com/docs/stable/sql-statements
+    - https://www.cockroachlabs.com/docs/stable/vector
+    - https://www.cockroachlabs.com/docs/v26.2/full-text-search
+auth_method: sql-connection
+api_style: rest
+auth:
+  type: none
+  env: ""
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope:
+  - name: cluster_id
+    env: COCKROACH_CLUSTER_ID
+    required: true
+    instructions: existing dedicated CockroachDB sandbox cluster; do not create or
+      modify another cluster
+  - name: database
+    env: COCKROACH_DATABASE
+    required: true
+    instructions: existing dedicated database named by the CockroachDB sandbox connection
+sql_conn:
+  dialect: postgres
+  connection_string_env: COCKROACH_CONNECTION_STRING
+surfaces:
+  cli:
+    bin: cockroach
+    install: brew install cockroachdb/tap/cockroach
+    docs_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+    auth:
+      kind: inherit
+      token_env_aliases: []
+      instructions: Use cockroach sql with COCKROACH_CONNECTION_STRING for SQL
+        data-plane operations. Cloud control-plane operations are out of scope.
+base_url: ""
+headers: {}
+site_url: https://cockroachlabs.com
+openapi_url: ""
+docs_urls:
+  - https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+  - https://www.cockroachlabs.com/docs/stable/security-reference/authorization
+  - https://www.cockroachlabs.com/docs/stable/sql-statements
+  - https://www.cockroachlabs.com/docs/stable/vector
+  - https://www.cockroachlabs.com/docs/v26.2/full-text-search
+static:
+  site_url: https://cockroachlabs.com
+  docs_urls:
+    - https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+    - https://www.cockroachlabs.com/docs/stable/security-reference/authorization
+    - https://www.cockroachlabs.com/docs/stable/sql-statements
+    - https://www.cockroachlabs.com/docs/stable/vector
+    - https://www.cockroachlabs.com/docs/v26.2/full-text-search
+  checks: []
+discovery:
+  product: CockroachDB
+  goal: "You are about to operate CockroachDB programmatically on its documented
+    CLI data plane. First work out, from scratch, how CockroachDB's public
+    agent-facing surfaces work: base URL (or CLI entrypoint), authentication,
+    and at least one documented read or write call you can use to confirm the
+    surface is live. You are NOT given any endpoint, base URL, or documentation
+    link; find them yourself. DAEB-2 is CLI-only: use the declared CLI and do
+    not call the management API."
+  official_domains:
+    - cockroachlabs.com
+  canonical_endpoint: cockroach sql
+  deprecated_markers: []
+  auth_scheme: SQL connection string via the declared CLI
+tasks:
+  - id: db-T17-cli-session-discovery
+    title: "T17: Discover and verify an authenticated CLI session"
+    prompt: >-
+      From a fresh family session, discover the vendor's documented command-line
+      entrypoint and authentication path.
+
+
+      Using the provisioned sandbox credentials, create a task-scoped relation
+      named `axarena_session_probe_{ns}`
+
+
+      with exactly one marker `session_{ns}` and the authenticated principal
+      observed by the CLI session.
+
+
+      Start a second fresh CLI process and read the marker back. Report the
+      discovered surface, auth method,
+
+
+      relation name, and marker. Never print credentials, call a management API,
+      or clean up the relation.
+
+
+      The evaluator will independently read the relation after the task.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: authenticated CLI session created exactly one marker row
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_session_probe_{ns}" WHERE
+          marker = 'session_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: marker row records a non-empty authenticated principal
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_session_probe_{ns}" WHERE
+          marker = 'session_{ns}' AND principal <> ''
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: access-auth-discovery
+    challenge_tags:
+      - surface-ambiguity
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/cli-session-discovery
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T21-cli-principal-continuity
+    title: "T21: Verify authenticated principal continuity across CLI sessions"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_principal_probe_{ns}` with one marker `principal_{ns}` and
+      the non-empty authenticated principal returned by the session. Start a
+      second fresh CLI process, read the row back, and report the same principal
+      without printing credentials or cleaning up.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: principal continuity created exactly one marker row
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_principal_probe_{ns}"
+          WHERE marker = 'principal_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: principal continuity records a non-empty authenticated principal
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_principal_probe_{ns}"
+          WHERE marker = 'principal_{ns}' AND principal <> ''
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: access-auth-discovery
+    challenge_tags:
+      - surface-ambiguity
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/cli-principal-continuity
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T18-constraint-preservation
+    title: "T18: Preserve a constraint under a rejected write"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_constraint_probe_{ns}` with a primary key and a unique
+      marker constraint. Insert exactly one marker `constraint_{ns}`, then
+      deliberately attempt the same marker again using the vendor's documented
+      conflict/rejection path. Leave the original row intact and report the
+      relation and rejected-write outcome; do not disable or replace the
+      constraint.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: duplicate marker did not create a second row
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_constraint_probe_{ns}"
+          WHERE marker = 'constraint_{ns}'
+      - type: roundtrip
+        expected: 2
+        description: primary and unique constraints remain declared
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM
+          information_schema.table_constraints WHERE table_schema='public' AND
+          table_name='axarena_constraint_probe_{ns}' AND constraint_type IN
+          ('PRIMARY KEY','UNIQUE')
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/constraint-preservation
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T19-transactional-record-recovery
+    title: "T19: Recover a record after a rolled-back transaction"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_txn_probe_{ns}` with exactly one column, `marker TEXT
+      PRIMARY KEY`. Start a transaction that inserts `rollback_{ns}` and roll it
+      back, then commit exactly one `committed_{ns}` row in a separate
+      transaction. Report the observed rollback and commit behavior without
+      cleaning up the relation.
+    oracles:
+      - type: roundtrip
+        expected: 0
+        description: rolled-back marker is absent
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_txn_probe_{ns}" WHERE
+          marker = 'rollback_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: committed marker is present
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_txn_probe_{ns}" WHERE
+          marker = 'committed_{ns}'
+    difficulty: L4
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/transactional-record-recovery
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T20-aggregate-query
+    title: "T20: Aggregate a filtered record set"
+    prompt: "From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_aggregate_probe_{ns}` with three rows: two `active` rows
+      and one `inactive` row. Run a filtered aggregate that counts only the
+      active rows and report the relation and count without cleaning it up."
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: aggregate relation contains three rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_aggregate_probe_{ns}"
+      - type: roundtrip
+        expected: 2
+        description: filtered aggregate counts two active rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_aggregate_probe_{ns}"
+          WHERE status = 'active'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/aggregate-query
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T22-negative-query-verification
+    title: "T22: Verify a Negative Query Without Losing Existing Records"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_negative_query_probe_{ns}` with two marker rows. Run a
+      query for a marker that does not exist, confirm the negative result, then
+      report the relation and the preserved record count without cleaning up.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: negative-query relation preserves both original rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_negative_query_probe_{ns}"
+      - type: roundtrip
+        expected: 0
+        description: negative predicate returns zero rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_negative_query_probe_{ns}"
+          WHERE marker = 'absent_{ns}'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/negative-query-verification
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false

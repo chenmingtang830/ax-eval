@@ -1,0 +1,106 @@
+schema: ax.daeb-v2-cli-doc-audit/v1
+benchmark: DAEB-2
+generated_at: 2026-08-12
+method: official-doc-refresh
+canonical_surface: cli
+source_version: daeb-1-v1
+task_source_status: inherited-v1-task-intent-with-explicit-cli-doc-and-target-capability-corrections
+publication_status: rc0-audited-not-publication-ready
+notes:
+  - This is a documentation admission audit, not a support result.
+  - A retained task remains inconclusive until setup, mutation, independent read-back, cleanup, and hash-bound witness proof pass.
+  - v1 packs and artifacts are immutable diagnostic history.
+  - rc0-semantic-audit.yaml classifies retained tuples by actual transport and capability class; this audit alone does not authorize public publication.
+excluded_vendors:
+  - supabase
+vendor_audits:
+  - vendor: cockroachdb
+    decision: retain
+    source_docs:
+      - https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+      - https://www.cockroachlabs.com/docs/stable/security-reference/authorization
+      - https://www.cockroachlabs.com/docs/stable/sql-statements
+      - https://www.cockroachlabs.com/docs/stable/vector
+      - https://www.cockroachlabs.com/docs/v26.2/full-text-search
+    task_decisions:
+      - { task_id: db-T01-access-control, decision: retain, evidence: SQL users/roles/grants documented for the SQL shell }
+      - { task_id: db-T02-evolve-schema, decision: retain, evidence: CREATE/ALTER TABLE documented in SQL statement reference }
+      - { task_id: db-T03-inspect-schema, decision: retain, evidence: SQL shell and schema introspection are documented }
+      - { task_id: db-T04-query-records, decision: retain, evidence: SELECT/filter operations are documented }
+      - { task_id: db-T05-vector-search, decision: retain, evidence: VECTOR type and distance operators are documented }
+      - { task_id: db-T06-write-records, decision: retain, evidence: INSERT/UPDATE/DELETE are documented }
+      - { task_id: db-T07-full-text-search, decision: retain, evidence: TSVECTOR/TSQUERY and @@ are documented }
+  - vendor: insforge
+    decision: retain
+    source_docs:
+      - https://insforge.dev/blog/introducing-insforge-cli
+      - https://www.npmjs.com/package/@insforge/cli
+      - https://insforge-468ccf39.mintlify.app/core-concepts/database/migrations
+      - https://docs.insforge.dev/core-concepts/database/pgvector
+    task_decisions:
+      - { task_id: db-T01-access-control, decision: retain, evidence: v1 admitted psql data-plane CLI plus current InsForge CLI docs expose database policy inspection/management }
+      - { task_id: db-T02-evolve-schema, decision: retain, evidence: official CLI documents migrations and db query }
+      - { task_id: db-T03-inspect-schema, decision: retain-new-cli-tuple, evidence: current CLI documents db tables and db query; v1 had API-only attribution }
+      - { task_id: db-T04-query-records, decision: retain, evidence: official CLI documents db query }
+      - { task_id: db-T05-vector-search, decision: retain, evidence: official PGVector docs document vector columns and similarity operators }
+      - { task_id: db-T06-write-records, decision: retain, evidence: official CLI db query supports SQL row operations }
+      - { task_id: db-T07-full-text-search, decision: exclude, evidence: no direct current official CLI full-text workflow was admitted in this refresh }
+  - vendor: neon
+    decision: retain
+    source_docs:
+      - https://neon.com/docs/connect/query-with-psql-editor
+      - https://neon.com/docs/manage/databases
+      - https://neon.com/docs/guides/row-level-security
+      - https://neon.com/docs/ai/ai-concepts
+      - https://neon.com/guides
+    task_decisions:
+      - { task_id: db-T01-access-control, decision: retain, evidence: official RLS guide documents row-level security on Neon Postgres }
+      - { task_id: db-T02-evolve-schema, decision: retain, evidence: official psql and database-management docs support SQL schema changes }
+      - { task_id: db-T03-inspect-schema, decision: retain, evidence: official psql workflow supports SQL metadata inspection }
+      - { task_id: db-T04-query-records, decision: retain, evidence: official psql workflow supports SELECT/filter operations }
+      - { task_id: db-T05-vector-search, decision: retain, evidence: official AI docs document pgvector and VECTOR columns }
+      - { task_id: db-T06-write-records, decision: retain, evidence: official psql workflow supports SQL writes }
+      - { task_id: db-T07-full-text-search, decision: retain, evidence: official Neon guides document tsvector full-text search }
+  - vendor: nile
+    decision: retain
+    source_docs:
+      - https://www.thenile.dev/docs/cli/interacting_db
+      - https://www.thenile.dev/docs/getting-started/languages/sql
+      - https://www.thenile.dev/docs/extensions/vector
+      - https://www.thenile.dev/docs/extensions/pg_bigm
+      - https://www.thenile.dev/docs/ai-embeddings/rag
+      - https://www.thenile.dev/docs/getting-started/whatisnile
+    task_decisions:
+      - { task_id: db-T01-access-control, decision: exclude, evidence: Nile documents tenant isolation rather than user-configured RLS/role access control for this task }
+      - { task_id: db-T02-evolve-schema, decision: retain, evidence: official Nile SQL and CLI docs support schema changes }
+      - { task_id: db-T03-inspect-schema, decision: retain, evidence: official SQL workflow supports metadata inspection }
+      - { task_id: db-T04-query-records, decision: retain, evidence: official SQL workflow supports filtered reads }
+      - { task_id: db-T05-vector-search, decision: retain, evidence: official vector extension docs support vector queries }
+      - { task_id: db-T06-write-records, decision: retain, evidence: official CLI/SQL docs support database writes }
+      - { task_id: db-T07-full-text-search, decision: retain, evidence: official pg_bigm and RAG docs document full-text search }
+  - vendor: turso
+    decision: retain
+    source_docs:
+      - https://docs.turso.tech/tursodb/quickstart
+      - https://docs.turso.tech/cli/db/shell
+      - https://docs.turso.tech/sql-reference/statements/create-table
+      - https://docs.turso.tech/sql-reference/functions/fts
+      - https://docs.turso.tech/sql-reference/experimental-features
+      - https://docs.turso.tech/guides/vector-search
+    task_decisions:
+      - { task_id: db-T01-access-control, decision: exclude, evidence: denied-token probe requires organization-level token minting outside ordinary cell credentials }
+      - { task_id: db-T02-evolve-schema, decision: retain, evidence: official tursodb/turso db shell and CREATE TABLE docs support SQL schema changes }
+      - { task_id: db-T03-inspect-schema, decision: retain, evidence: official SQL shell docs support pragma/schema inspection }
+      - { task_id: db-T04-query-records, decision: retain, evidence: official SQL shell docs support filtered reads }
+      - { task_id: db-T05-vector-search, decision: retain, evidence: official vector-search docs support vector SQL }
+      - { task_id: db-T06-write-records, decision: retain, evidence: official INSERT and shell docs support row lifecycle operations }
+      - { task_id: db-T07-full-text-search, decision: exclude, evidence: admitted Turso sandbox CLI lacks experimental index_method/fts_match; retain only after target capability is provisioned and witnessed }
+summary:
+  retained_cli_candidates: 31
+  retained_vendors: 5
+  excluded_vendor_count: 1
+  excluded_task_tuples: 4
+  support_result: see support-matrix.yaml after deterministic witness stage
+  supported_after_witness: 31
+  inconclusive_after_witness: 0
+  blocked_after_witness: 0

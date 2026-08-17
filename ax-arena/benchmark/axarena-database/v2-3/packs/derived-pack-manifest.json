@@ -1,0 +1,94 @@
+{
+  "schema": "ax.daeb-v2-3-derived-pack-manifest/v1",
+  "suite": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/vendor-experience-suite.yaml",
+    "sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15"
+  },
+  "generation": "deterministic-task-subset-from-v2-1",
+  "vendors": {
+    "cockroachdb": {
+      "source_pack": "ax-arena/benchmark/axarena-database/v2-1/packs/cockroachdb/pack.yaml",
+      "source_sha256": "979e29b9c75774fa625918777037f7066261c32cdb210d103fb084fe2840e0cf",
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/cockroachdb/pack.yaml",
+      "pack_sha256": "55ea3712e05ca65095b53834d39712d26c6e63e73201c95ccad9377bb19555b4",
+      "task_ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ]
+    },
+    "insforge": {
+      "source_pack": "ax-arena/benchmark/axarena-database/v2-1/packs/insforge/pack.yaml",
+      "source_sha256": "b3b4050b0ecbc5334e5b06ad37d78d4e4f18aaa1c038d01bacf2b5f576a219c3",
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/insforge/pack.yaml",
+      "pack_sha256": "4bfcbbad8c84e25b88fb45717048bd45c2cc84bcbbe4db07cb8f18d38fb84d19",
+      "task_ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ]
+    },
+    "neon": {
+      "source_pack": "ax-arena/benchmark/axarena-database/v2-1/packs/neon/pack.yaml",
+      "source_sha256": "33cd92fdf0526a5e9b2bcbf946060979126502f4a39012c61fc43e79046298f4",
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/neon/pack.yaml",
+      "pack_sha256": "b987ba13465329d66ebef58c77251388dd0490229e0d2029c5d31480e462cee9",
+      "task_ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ]
+    },
+    "nile": {
+      "source_pack": "ax-arena/benchmark/axarena-database/v2-1/packs/nile/pack.yaml",
+      "source_sha256": "45f091f0e58b0372cf6ca9b30e2fda2e4026b94ae10d4fddf43beb8807d119bb",
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/nile/pack.yaml",
+      "pack_sha256": "1dae3ced278e51aaa2b1274bd3ac2be290d7be445a6f0c35030598f8a25647bb",
+      "task_ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ]
+    },
+    "supabase": {
+      "source_pack": "ax-arena/benchmark/axarena-database/v2-1/packs/supabase/pack.yaml",
+      "source_sha256": "0d6ebd50027a8152e2a273ab3f3ad5b19260a85b23f43539544677fa3c0b40d1",
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/supabase/pack.yaml",
+      "pack_sha256": "25193a584552c0abeca8bbe5328fc75d19f405cdf378425766a4d767edeea1c5",
+      "task_ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ]
+    },
+    "turso": {
+      "source_pack": "ax-arena/benchmark/axarena-database/v2-1/packs/turso/pack.yaml",
+      "source_sha256": "f21de4da5ffe2d6ee8a4bd77612b3a86824dd19a0b5b1ecf0a6f3912ae12bac5",
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/turso/pack.yaml",
+      "pack_sha256": "c3741ca095a73f10237fa59a500d82f6f8d67ad3304a2299dcc765d73010c32f",
+      "task_ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ]
+    }
+  }
+}

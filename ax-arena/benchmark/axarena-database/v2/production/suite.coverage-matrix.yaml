@@ -1,0 +1,30 @@
+schema: ax.coverage-matrix/v1
+category: database
+generated_at: 2026-08-14T16:00:00.000Z
+concepts:
+  - concept_name: access-control
+    title: Configure an idiomatic access-control mechanism
+    decisions:
+      - {concept_name: access-control, vendor: cockroachdb, status: supported, source: selection-default, capability_name: sql-role-grants, surfaces_documented: [cli], evidence: []}
+      - {concept_name: access-control, vendor: insforge, status: supported, source: selection-default, capability_name: postgres-role-grants, surfaces_documented: [cli], evidence: []}
+      - {concept_name: access-control, vendor: neon, status: supported, source: selection-default, capability_name: postgres-role-grants, surfaces_documented: [cli], evidence: []}
+      - {concept_name: access-control, vendor: nile, status: unsupported, source: selection-default, reason: tenant isolation is not a user-configurable control, surfaces_documented: [cli], evidence: []}
+      - {concept_name: access-control, vendor: turso, status: unsupported, source: selection-default, reason: denied-token probe requires organization capability, surfaces_documented: [cli], evidence: []}
+  - concept_name: evolve-schema
+    title: Apply a schema evolution
+    decisions: [{concept_name: evolve-schema, vendor: all-five, status: supported, source: selection-default, capability_name: alter-table, surfaces_documented: [cli], evidence: []}]
+  - concept_name: inspect-schema
+    title: Inspect container metadata
+    decisions: [{concept_name: inspect-schema, vendor: all-five, status: supported, source: selection-default, capability_name: metadata-inspection, surfaces_documented: [cli], evidence: []}]
+  - concept_name: query-records
+    title: Filter and read matching records
+    decisions: [{concept_name: query-records, vendor: all-five, status: supported, source: selection-default, capability_name: filtered-select, surfaces_documented: [cli], evidence: []}]
+  - concept_name: vector-search
+    title: Create a vector-enabled dataset and query it
+    decisions: [{concept_name: vector-search, vendor: all-five, status: supported, source: selection-default, capability_name: vector-distance, surfaces_documented: [cli], evidence: []}]
+  - concept_name: write-records
+    title: Create, update, and delete one record lifecycle
+    decisions: [{concept_name: write-records, vendor: all-five, status: supported, source: selection-default, capability_name: sql-dml-lifecycle, surfaces_documented: [cli], evidence: []}]
+  - concept_name: full-text-search
+    title: Create a searchable text dataset and query it
+    decisions: [{concept_name: full-text-search, vendor: all-five, status: supported, source: selection-default, capability_name: text-search, surfaces_documented: [cli], evidence: []}]
