@@ -71,7 +71,7 @@ export interface ArenaCellSpec {
   evaluationSetId: string;
   targetId: string;
   surface: SurfaceId;
-  harness: "codex" | "claude-code";
+  harness: "codex" | "claude-code" | "opencode";
   profile: "low" | "medium" | "high";
   model: string;
   effort: "low" | "medium" | "high";
@@ -100,6 +100,8 @@ export interface ArenaCellExecution {
 export interface ArenaCellDependencies {
   credentials: Readonly<Record<string, string | undefined>>;
   now(): Date;
+  /** Local-only Codex login transfer; trusted hosted cells leave this false. */
+  allowAmbientHarnessAuth?: boolean;
   runCell?(
     cell: EvaluationCell,
     options: Parameters<typeof runCell>[1],
@@ -343,14 +345,19 @@ function connectionDataPlaneCli(pack: TargetPack, surface: SurfaceId): boolean {
 export function cellCredentialNames(
   pack: TargetPack,
   surface: SurfaceId,
-  harness: "codex" | "claude-code",
+  harness: "codex" | "claude-code" | "opencode",
   credentials: Readonly<Record<string, string | undefined>>,
+  harnessModel?: string,
 ): string[] {
   const names = new Set<string>();
   const add = (name: string | undefined) => {
     if (name) names.add(name);
   };
-  add(harness === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY");
+  if (harness === "codex") add("OPENAI_API_KEY");
+  else if (harness === "claude-code") add("ANTHROPIC_API_KEY");
+  else if (harnessModel?.startsWith("moonshotai/")) add("MOONSHOT_API_KEY");
+  else if (harnessModel?.startsWith("openrouter/")) add("OPENROUTER_API_KEY");
+  else throw new Error("OpenCode arena cells require an explicit supported provider/model credential route");
   if (surface === "api" && pack.auth?.type !== "none") {
     add(selectedEnvName(topLevelAuthNames(pack), credentials));
   }
@@ -544,11 +551,12 @@ function normalizeCredentialSource(
   const secrets = new Set<string>();
   for (const [name, raw] of Object.entries(structuredClone(source))) {
     if (typeof raw !== "string") continue;
-    if (raw) secrets.add(raw);
+    const sensitive = /(?:KEY|TOKEN|SECRET|PASSWORD|CONNECTION|_URL$)/.test(name);
+    if (raw && sensitive) secrets.add(raw);
     const trimmed = raw.trim();
     if (trimmed) {
       credentials[name] = trimmed;
-      secrets.add(trimmed);
+      if (sensitive) secrets.add(trimmed);
     }
   }
   return {
@@ -913,7 +921,7 @@ async function executeArenaCellInternal(
   assertIsolatedInputCopies(cwd, spec.sourceCommitSha, packPath, runtimePackPath);
   const packContentHash = packFileContentHash(runtimePackPath);
   const cellId = arenaCellId(spec, packContentHash);
-  const hostCredentialNames = cellCredentialNames(pack, spec.surface, spec.harness, credentials);
+  const hostCredentialNames = cellCredentialNames(pack, spec.surface, spec.harness, credentials, spec.model);
   const verificationCredentialNames = cellVerificationCredentialNames(pack, credentials, spec.surface);
   const resetCredentialNames = cellResetCredentialNames(pack, credentials);
   const cell = deepFreeze(EvaluationCellSchema.parse({
@@ -955,6 +963,7 @@ async function executeArenaCellInternal(
   const returnedRecord = await dependencies.runCell(cell, {
     credentials: hostCredentials,
     verificationCredentials: verifierCredentials,
+    allowAmbientHarnessAuth: dependencies.allowAmbientHarnessAuth === true,
     extensions: { registry },
     approval: {
       allowCommittedLegacy: true,

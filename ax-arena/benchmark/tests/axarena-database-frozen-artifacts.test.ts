@@ -21,27 +21,27 @@ const SUITE_PATH = "ax-arena/benchmark/axarena-database/v1/suite.yaml";
 const VERSION_DIR = resolve(ROOT, "ax-arena/benchmark/axarena-database/v1");
 const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
   cockroachdb: {
-    approval: "9c4980cb7b34a08dd980bd23df27baa02acc0573186c68b6128801b177f64910",
+    approval: "59f19c15e3388a98b6c5b4f1a2e2b7b868bb45853f99ca15ec71c4651901b44c",
     pack: "1401aab8fa4a75e3ed68819e768d50286341c8fa2baae32dbd3152cf7ebc8a0b",
   },
   insforge: {
-    approval: "10cd4c4f2292a5155ba0ec91264dc5bff8f29126c8bf4539863fce5c4caea501",
+    approval: "79fbb2c29684a31f0c5d3e9131610c0c4c5fb20880e7c9ac8844c4cd5c4b8641",
     pack: "88b8549cc89b14f6f03f3d7d44c80d7234509faacce36729a7567893f0884502",
   },
   neon: {
-    approval: "cb18ed41893e94988dc63e9a61d50dd0ff723ff9b19a92b15119c3bdd69d824d",
+    approval: "641e6f1d2d0808575da6519a036d54f7b3db3b2deb35a5b1b494114cdc308032",
     pack: "8d21d813f05bf92109c70690d42f4f7e839fa16e509c547caea3cfee5f707c2d",
   },
   nile: {
-    approval: "986f70f2d43b9e71d9f1dc8f904601afcac10449b2a68dce14465e7e64ee339b",
+    approval: "89f331ee85978c4d2339c34e2b5c211631d809b4d58cfc08aa6bf13616ccebda",
     pack: "e592542ffaecbd62e53db65dce2bcfb821a08a3c28e2c32eb1a1f8a2586a0c2c",
   },
   supabase: {
-    approval: "f613b2f164f761dc635550e4c97d07cc109591227b6d2f8ff35648f55441b3a6",
+    approval: "680ecaad49ae9d392fda44d5fbbace65a2cae9cb0651747ce8d913d9f88f5c89",
     pack: "964c54a1d4dd76ea6ea905a38b38e1704f03ffc8d665d6c533d4c28a52e159a4",
   },
   turso: {
-    approval: "7555190d29dd8ea09175c9c30523487f551dfe59cc6c9d08c516030e991592c4",
+    approval: "bf03d8a5901749442fbaae5958ba1ca5be14e0491afa2b23ca1ee9a1e7df83d9",
     pack: "190165bca064a0a583972146a6388ea0f0ea9cee252745996ce64e30c0651308",
   },
 };

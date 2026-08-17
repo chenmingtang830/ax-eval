@@ -80,13 +80,14 @@ export function parseRuntimeLock(input) {
   }
 
   const harnesses = object(lock.harnesses, "harness runtime");
-  exactKeys(harnesses, ["package_lock_path", "package_lock_sha256", "codex", "claude_code"], "harness runtime");
+  exactKeys(harnesses, ["package_lock_path", "package_lock_sha256", "codex", "claude_code", "opencode"], "harness runtime");
   if (harnesses.package_lock_path !== TRUSTED_HARNESS_LOCK_PATH) {
     throw new Error("harness runtime must use the canonical package lock");
   }
   exactString(harnesses.package_lock_sha256, /^[a-f0-9]{64}$/, "harness package-lock hash");
   validateHarnessPin(harnesses.codex, "@openai/codex", "Codex pin");
   validateHarnessPin(harnesses.claude_code, "@anthropic-ai/claude-code", "Claude Code pin");
+  validateHarnessPin(harnesses.opencode, "opencode-ai", "OpenCode pin");
 
   const bubblewrap = object(lock.bubblewrap, "bubblewrap pin");
   exactKeys(bubblewrap, ["version", "archive_url", "archive_sha256", "executable_path", "executable_sha256"], "bubblewrap pin");
@@ -126,10 +127,12 @@ function validatePackageLock(root, runtimeLock) {
   const expected = {
     "@openai/codex": runtimeLock.harnesses.codex.version,
     "@anthropic-ai/claude-code": runtimeLock.harnesses.claude_code.version,
+    "opencode-ai": runtimeLock.harnesses.opencode.version,
   };
   if (JSON.stringify(rootPackage.dependencies) !== JSON.stringify({
     "@anthropic-ai/claude-code": expected["@anthropic-ai/claude-code"],
     "@openai/codex": expected["@openai/codex"],
+    "opencode-ai": expected["opencode-ai"],
   })) throw new Error("trusted harness root dependencies do not match the runtime lock");
   for (const [name, version] of Object.entries(expected)) {
     const entry = object(packages[`node_modules/${name}`], `${name} package lock entry`);
@@ -143,6 +146,7 @@ function validatePackageLock(root, runtimeLock) {
   for (const path of [
     "node_modules/@openai/codex-linux-x64",
     "node_modules/@anthropic-ai/claude-code-linux-x64",
+    "node_modules/opencode-linux-x64",
   ]) {
     const entry = object(packages[path], `${path} package lock entry`);
     if (typeof entry.integrity !== "string" || !entry.integrity.startsWith("sha512-")

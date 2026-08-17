@@ -203,6 +203,37 @@ describe("surface-aware discovery scoring", () => {
     };
     const report = await scoreDiscovery(spec, result, client, { surface: "cli" });
     expect(report.metrics.find((m) => m.id === "official")!.passed).toBe(true);
+    expect(report.metrics.find((m) => m.id === "hops")!.passed).toBe(true);
+  });
+
+  it("requires the declared canonical CLI command when the pack provides one", async () => {
+    const cliSpec: DiscoverySpec = {
+      ...spec,
+      canonical_endpoint: "turso db shell <TURSO_SANDBOX_DATABASE>",
+    };
+    const report = await scoreDiscovery(cliSpec, {
+      searches: [],
+      urls_visited: [],
+      endpoint_used: "turso --help",
+      commands_used: ["turso --help", "turso db shell $TURSO_SANDBOX_DATABASE SELECT 1"],
+      inspected_local_source: true,
+    }, client, { surface: "cli" });
+    expect(report.metrics.find((m) => m.id === "canonical")!.passed).toBe(true);
+  });
+
+  it("rejects a non-canonical CLI command even when some CLI command ran", async () => {
+    const cliSpec: DiscoverySpec = {
+      ...spec,
+      canonical_endpoint: "turso db shell <TURSO_SANDBOX_DATABASE>",
+    };
+    const report = await scoreDiscovery(cliSpec, {
+      searches: [],
+      urls_visited: [],
+      endpoint_used: "turso --help",
+      commands_used: ["turso --help", "turso db list"],
+      inspected_local_source: true,
+    }, client, { surface: "cli" });
+    expect(report.metrics.find((m) => m.id === "canonical")!.passed).toBe(false);
   });
 
   it("MCP auth PASSES when a tool was used, even though the found scheme (OAuth) != the API's Bearer-PAT", async () => {

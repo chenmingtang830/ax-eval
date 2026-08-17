@@ -72,11 +72,11 @@ export type ArenaCellCleanupRecord = z.infer<typeof ArenaCellCleanupSchema>;
 
 const SourceSha = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 const Surface = z.enum(["api", "cli", "sdk", "mcp"]);
-const Harness = z.enum(["codex", "claude-code"]);
+const Harness = z.enum(["codex", "claude-code", "opencode"]);
 const ProviderKind = z.enum(["oracle", "provisioning", "health-check", "target-adapter"]);
 export const ArenaVendorSchema = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,127}$/);
 const CellKey = z.string()
-  .regex(/^[a-z0-9][a-z0-9._-]{0,127}\/(?:api|cli|sdk|mcp)\/(?:codex|claude-code)\/trial-[1-9]\d*$/)
+  .regex(/^[a-z0-9][a-z0-9._-]{0,127}\/(?:api|cli|sdk|mcp)\/(?:codex|claude-code|opencode)\/trial-[1-9]\d*$/)
   .max(256);
 const ReportPath = z.string()
   .regex(/^(?!\/)(?!.*(?:^|\/)\.{1,2}(?:\/|$))[A-Za-z0-9._/-]+$/)
@@ -173,10 +173,12 @@ export const ArenaBatchConfigurationSchema = z.object({
     name: NonBlank,
     version: z.number().int().positive(),
     file_hash: Sha256,
+    path: ReportPath.optional(),
   }).strict(),
   packs: z.array(z.object({
     vendor: ArenaVendorSchema,
     file_hash: Sha256,
+    path: ReportPath.optional(),
     standard_set_version: NonBlank,
     surfaces: z.array(Surface).min(1).max(4),
     host_credential_names: Names,
@@ -284,12 +286,13 @@ export const ArenaBatchConfigurationSchema = z.object({
       message: "harness pins must uniquely and exactly cover the configured cell harnesses",
     });
   }
-  const exactHarnesses = [...pinnedHarnesses].sort().join("\0") === "claude-code\0codex";
+  const harnessSet = [...pinnedHarnesses].sort().join("\0");
+  const exactHarnesses = harnessSet === "claude-code\0codex" || harnessSet === "opencode";
   if (!exactHarnesses) {
     context.addIssue({
       code: "custom",
       path: ["harnesses"],
-      message: "AXArena-Database batches require both Codex and Claude Code harness pins",
+      message: "AXArena-Database batches require either the canonical Codex+Claude Code pair or one pinned OpenCode route",
     });
   }
   const trials = [...new Set(configuration.cells.map((cell) => cell.trial))].sort((left, right) => left - right);
@@ -340,14 +343,18 @@ export const ArenaBatchConfigurationSchema = z.object({
     const exactTrials = JSON.stringify(trials) === "[1,2,3]";
     const canonicalPolicy = configuration.cells.every((cell) => cell.profile === "high"
       && cell.effort === "high"
-      && cell.model === (cell.harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5"));
+      && cell.model === (cell.harness === "codex"
+        ? "gpt-5.6-terra"
+        : cell.harness === "claude-code"
+          ? "claude-sonnet-5"
+          : "openrouter/z-ai/glm-5.2"));
     const scopedSurfaces = configuration.packs.every((pack) =>
       pack.surfaces.every((surface) => surface === "api" || surface === "cli"));
     if (!exactHarnesses || !exactTrials || !configuration.reset_required || !canonicalPolicy || !scopedSurfaces) {
       context.addIssue({
         code: "custom",
         path: ["command"],
-        message: "production reruns require both canonical harnesses/models, high effort, three trials, reset, and API/CLI scope",
+        message: "production reruns require a canonical harness/model route, high effort, three trials, reset, and API/CLI scope",
       });
     }
   } else {

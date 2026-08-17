@@ -135,6 +135,23 @@ export const TaskSchema = z
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),
     depends_on: z.array(z.string()).default([]),
+    /** V2.1 family allocation for independent cold-start sessions. */
+    execution_family: z.enum(["access-auth-discovery", "schema-integrity", "query-search", "lifecycle-recovery"]).optional(),
+    /** V2.1 challenge dimensions; these are scoring metadata, not instructions. */
+    challenge_tags: z.array(z.enum([
+      "multi-step-state",
+      "constraint-preservation",
+      "negative-verification",
+      "recoverable-fault",
+      "surface-ambiguity",
+      "recovery",
+    ])).optional(),
+    discovery_reset: z.enum(["cell", "family", "task"]).optional(),
+    /** Controller-only fixture/reset reference. Never included in agent prompts. */
+    controller_fixture_ref: z.string().optional(),
+    /** Controller metadata used by the V2.1 selection/execution ledger. */
+    supported_vendors: z.array(z.string().min(1)).min(1).optional(),
+    anchor: z.boolean().optional(),
     /** Optional expected/forbidden trace constraints for structural diff. */
     trace: z.array(TraceConstraintSchema).default([]),
   })

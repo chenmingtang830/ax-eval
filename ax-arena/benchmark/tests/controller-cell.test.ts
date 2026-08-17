@@ -192,6 +192,14 @@ describe("arena cell controller", () => {
       "DATABASE_URL",
       "SANDBOX_PROJECT",
     ]);
+    expect(cellCredentialNames(pack, "api", "opencode", {
+      ...credentials,
+      OPENROUTER_API_KEY: "openrouter",
+    }, "openrouter/z-ai/glm-5.2")).toEqual([
+      "DATABASE_API_KEY",
+      "OPENROUTER_API_KEY",
+      "SANDBOX_PROJECT",
+    ]);
     expect(cellVerificationCredentialNames(pack, credentials)).toEqual([
       "DATABASE_URL",
       "DATABASE_VERIFY_KEY",

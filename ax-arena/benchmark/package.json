@@ -41,7 +41,9 @@
     "typecheck": "tsc --noEmit",
     "trusted:plan": "node dist/trusted-plan.js",
     "trusted:worker": "node dist/trusted-worker.js",
-    "trusted:assemble": "node dist/assemble-trusted-completion.js"
+    "trusted:assemble": "node dist/assemble-trusted-completion.js",
+    "audit:v2-local-ax": "tsx scripts/audit-v2-local-ax.ts",
+    "v21:formal": "tsx scripts/run-v21-formal.ts"
   },
   "engines": {
     "node": ">=22"

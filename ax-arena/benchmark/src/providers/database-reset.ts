@@ -172,7 +172,7 @@ export const postgresResetProvider: ResetProvider = {
           ? `DROP TABLE IF EXISTS "public".${quotePostgresIdentifier(resource.name)}`
           : resource.kind === "function"
             ? ""
-            : `DROP ROLE IF EXISTS ${quotePostgresIdentifier(resource.name)}`;
+            : `DROP OWNED BY ${quotePostgresIdentifier(resource.name)}; DROP ROLE IF EXISTS ${quotePostgresIdentifier(resource.name)}`;
         try {
           if (resource.kind === "function") {
             const current = await client.query<{ statement: string }>(

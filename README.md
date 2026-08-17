@@ -118,6 +118,27 @@ npm run ax-eval -- automate-report --company Acme \
 
 ## Core ideas
 
+AXArena-Database v1 is retained as historical diagnostic material. Its successor
+is a CLI-only workflow: the five-vendor core excludes Supabase and all API
+tuples, unsupported target-capability tuples are removed, and the 31 retained
+SQL/CLI tuples have
+passed the offline executable-witness gate (`benchmark prepare-v2 --cli-only`)
+before any model or paid evaluation run. A documented capability alone does not
+admit a task tuple.
+
+The local release may also carry the separately reviewed
+`ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/`
+extension. It uses only `psql`/`SUPABASE_DB_URL`, has zero API cells, and keeps a
+separate denominator from the five-vendor core.
+
+DAEB v2.1 is a separate production namespace under
+ax-arena/benchmark/axarena-database/v2-1/. It restores the six-vendor
+structural roster (including Supabase), but remains CLI-only and uses only Pi
+and OpenCode through the controller-owned OpenRouter enforcement gateway. Its
+frozen design is 3 models x 3 trials x 4 family sessions, or 432 planned
+invocation cells. V2 results and artifacts are immutable baseline evidence;
+they are not silently rewritten by V2.1 authoring or execution.
+
 | Concept | Why it matters |
 | --- | --- |
 | **TargetPack** | A versioned description of tasks, allowed surfaces, authentication names, sandbox scope, and outcome oracles. |
@@ -175,6 +196,16 @@ not enter the denominator.
   `render-generated` to revisit the same evidence without a new live run.
 - **Keep identities separate.** Results are keyed by product, surface, harness,
   model, and effort; configurations are not silently averaged together.
+- **For an unattended sandbox lane, opt into automatic harness permissions.**
+  Add `--isolated-harness-auth` to `exec-plan --invoke`; this passes Claude Code
+  `bypassPermissions` only for that explicit run so a production cell cannot
+  stall on an interactive approval prompt. Keep this flag confined to an
+  isolated benchmark namespace and never use it for an ordinary working copy.
+- **For a pinned OpenRouter cell, use the controller-owned gateway flags.**
+  Supply `--openrouter-gateway-url`, `--openrouter-provider`,
+  `--openrouter-canonical-model`, and `--openrouter-data-collection` together.
+  The controller injects `allow_fallbacks:false` and records route evidence;
+  a provider mismatch is `invalid-route`, not a normal task failure.
 
 ## Library API
 

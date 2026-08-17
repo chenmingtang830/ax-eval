@@ -68,10 +68,23 @@ export type { SurfaceId } from "./surface/types.js";
 export {
   INVOKE_HARNESS_IDS,
   isInvokeHarnessId,
+  defaultInvokePaths,
+  detectInvokeHarness,
+  runInvokeHarness,
 } from "./harness/invoke.js";
-export type { InvokeHarnessId } from "./harness/invoke.js";
+export type {
+  InvokeAttemptMetrics,
+  InvokeDetection,
+  InvokeHarnessId,
+  InvokeHarnessMetrics,
+  InvokePaths,
+  InvokeRunOptions,
+  InvokeRunResult,
+  InvokeValidityStatus,
+} from "./harness/invoke.js";
 export type { TraceStep } from "./harness/executor.js";
 export {
+  observedToDiscovery,
   observedToTrace,
   parseTranscriptContent,
   parseTranscriptContentWithDiagnostics,
@@ -98,7 +111,8 @@ export type {
   BearerClientOptions,
 } from "./http/client.js";
 
-export type { DiscoveryResult } from "./generate/discovery.js";
+export { scoreDiscovery } from "./generate/discovery.js";
+export type { DiscoveryMetric, DiscoveryReport, DiscoveryResult } from "./generate/discovery.js";
 export type { ProfileRun } from "./generate/report.js";
 
 export {
@@ -114,6 +128,8 @@ export type {
 } from "./generate/oracle-provider.js";
 export { verifyGeneratedPack } from "./generate/verify.js";
 export { loadRequiredTrace } from "./generate/verify.js";
+export { loadResults } from "./generate/verify.js";
+export { buildVerificationClientOptions } from "./generate/verification-client.js";
 export type {
   ExecutorResults,
   RoundtripOutcome,
@@ -128,6 +144,7 @@ export {
   buildNormalizedResult,
   buildNormalizedResultCells,
   classifyTrialStabilityAt3,
+  discoveryScore,
   normalizedRunIdentity,
   resultCellKey,
 } from "./generate/record.js";
@@ -301,6 +318,21 @@ export { fetchSpecSummary } from "./ingest/spec-summary.js";
 export { NS_PLACEHOLDER, newRunId } from "./generate/pack.js";
 export { probeHarness } from "./harness/probe.js";
 export type { HarnessProbe } from "./harness/probe.js";
+export { provisionHarnessForSurface } from "./harness/mcp-provision.js";
+export type { HarnessProvisioning } from "./harness/mcp-provision.js";
+export {
+  enforceOpenRouterRequest,
+  routeEvidenceFromResponse,
+  startOpenRouterGateway,
+  validateResolvedProvider,
+} from "./harness/openrouter-gateway.js";
+export type {
+  OpenRouterGatewayOptions,
+  OpenRouterRouteEvidence,
+  OpenRouterRouteLedgerEntry,
+  OpenRouterRoutePolicy,
+  RunningOpenRouterGateway,
+} from "./harness/openrouter-gateway.js";
 export { renderGeneratedSnapshot } from "./generate/snapshot.js";
 export type { GeneratedReportSnapshot } from "./generate/snapshot.js";
 export { REPORT_STYLE } from "./report-style.js";

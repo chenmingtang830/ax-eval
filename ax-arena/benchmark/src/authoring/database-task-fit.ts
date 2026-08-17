@@ -60,6 +60,74 @@ const r = (
 
 const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
   {
+    conceptName: "cli-session-discovery",
+    paths: [{
+      id: "authenticated-cli-session",
+      requirements: [r("authenticated-cli-session", [
+        /\bcli-sql-shell\b/,
+        /\bbaseline-sql-table-and-row-operations\b/,
+        /\bdirect-postgres-connectivity\b/,
+        /\bpostgres-protocol-compatibility\b/,
+        /\bsql-query-execution\b/,
+      ])],
+    }],
+  },
+  {
+    conceptName: "cli-principal-continuity",
+    paths: [{
+      id: "authenticated-principal-continuity",
+      requirements: [r("authenticated-principal-continuity", [
+        /\bcli-sql-shell\b/,
+        /\bbaseline-sql-table-and-row-operations\b/,
+        /\bdirect-postgres-connectivity\b/,
+        /\bpostgres-protocol-compatibility\b/,
+        /\bsql-query-execution\b/,
+      ])],
+    }],
+  },
+  {
+    conceptName: "negative-query-verification",
+    paths: [{
+      id: "negative-query-with-state-preservation",
+      requirements: [r("negative-query-with-state-preservation", [
+        /\bcli-sql-shell\b/,
+        /\bbaseline-sql-table-and-row-operations\b/,
+        /\bdirect-postgres-connectivity\b/,
+        /\bpostgres-protocol-compatibility\b/,
+        /\bsql-query-execution\b/,
+      ])],
+    }],
+  },
+  {
+    conceptName: "constraint-preservation",
+    paths: [{
+      id: "unique-constraint-negative-write",
+      requirements: [r("unique-constraint-negative-write", [
+        /\bintegrity-constraints\b/,
+        /\bprimary-key-constraint\b/,
+        /\bforeign-key-constraint\b/,
+        /\btable-schema-definition\b/,
+        /\bbaseline-sql-table-and-row-operations\b/,
+        /\bsql-query-execution\b/,
+      ])],
+    }],
+  },
+  {
+    conceptName: "transactional-record-recovery",
+    paths: [{
+      id: "rollback-and-commit",
+      requirements: [r("rollback-and-commit", [
+        /\btransactions?\b/,
+        /\btransactional-consistency\b/,
+        /\bmulti-statement-transaction\b/,
+        /\bconcurrent-write-transactions\b/,
+        /\bbaseline-sql-table-and-row-operations\b/,
+        /\brow-insert-update-delete\b/,
+        /\bsql-query-execution\b/,
+      ])],
+    }],
+  },
+  {
     conceptName: "access-control",
     paths: [{
       id: "data-access-control",
@@ -164,6 +232,20 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
         r("update-record", [/\b(?:row|document)-(?:update|patch-update|replace|upsert)\b/, /\brow-insert-update-delete\b/, /\bupsert\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/], [/\btenant-lifecycle-management\b/]),
         r("delete-record", [/\b(?:row|document)-delete\b/, /\brow-insert-update-delete\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/], [/\btenant-lifecycle-management\b/]),
       ],
+    }],
+  },
+  {
+    conceptName: "aggregate-query",
+    paths: [{
+      id: "filtered-aggregate-read",
+      requirements: [r("filtered-aggregate-read", [
+        /\baggregate-query\b/,
+        /\baggregate-functions\b/,
+        /\bcount-aggregate\b/,
+        /\bbaseline-sql-table-and-row-operations\b/,
+        /\brelational-joins\b/,
+        /\bsql-query-execution\b/,
+      ])],
     }],
   },
   {

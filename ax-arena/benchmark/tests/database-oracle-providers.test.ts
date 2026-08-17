@@ -291,7 +291,7 @@ describe("arena SQL oracle provider", () => {
     expect(outcomes[0]?.oracleResults).toEqual([{
       type: "roundtrip",
       passed: false,
-      detail: 'oracle provider "arena-sql" failed',
+      detail: 'code="ROLE_SETUP_FAILED" expected="42501" error=true',
     }]);
     expect(postgresDriver.query.mock.calls).toEqual([
       ["RESET ROLE"],

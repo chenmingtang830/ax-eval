@@ -365,6 +365,115 @@ export function deriveCandidateUniverseDeterministic(extracts: CapabilityExtract
     }
   }
 
+  // Keep one cross-cutting CLI task in the bottom-up universe whose source
+  // evidence is the vendor's documented SQL/CLI connection surface rather
+  // than a product-specific RLS/RBAC feature. It measures cold-start
+  // discovery and authenticated session establishment. The current
+  // deterministic verifier covers five PostgreSQL-compatible vendors; Turso
+  // remains an explicit structural N/A for this variant.
+  const sessionVendorSlugs = new Set(["cockroachdb", "insforge", "neon", "nile", "supabase"]);
+  const sessionCapabilities = new Map<string, { vendor: string; capability_name: string }>();
+  const preferredSessionCapability = (capability: CapabilityRecord): string | undefined => {
+    const identity = `${capability.capability_name} ${capability.title}`.toLowerCase();
+    return capability.surfaces_documented.includes("cli") && (
+      /\b(cli-sql-shell|baseline-sql-table-and-row-operations|direct-postgres-connectivity|postgres-protocol-compatibility|sql-query-execution)\b/.test(identity)
+      || /\b(postgres|sql|connection|connectivity)\b/.test(identity)
+    ) ? capability.capability_name : undefined;
+  };
+  for (const extract of extracts) {
+    if (!sessionVendorSlugs.has(extract.slug.toLowerCase())) continue;
+    const capability = extract.capabilities.find(preferredSessionCapability);
+    if (capability) sessionCapabilities.set(extract.slug.toLowerCase(), {
+      vendor: extract.vendor,
+      capability_name: capability.capability_name,
+    });
+  }
+  if (sessionCapabilities.size === sessionVendorSlugs.size) {
+    clusters.set("cli-session-discovery", {
+      concept_name: "cli-session-discovery",
+      title: "Authenticated CLI Session Discovery",
+      vendors_citing: [...sessionVendorSlugs].map((slug) => sessionCapabilities.get(slug)!),
+    });
+    clusters.set("cli-principal-continuity", {
+      concept_name: "cli-principal-continuity",
+      title: "Verify Authenticated Principal Continuity Across CLI Sessions",
+      vendors_citing: [...sessionVendorSlugs].map((slug) => sessionCapabilities.get(slug)!),
+    });
+    clusters.set("negative-query-verification", {
+      concept_name: "negative-query-verification",
+      title: "Verify a Negative Query Without Losing Existing Records",
+      vendors_citing: [...sessionVendorSlugs].map((slug) => sessionCapabilities.get(slug)!),
+    });
+  }
+
+  // These two cross-vendor SQL workflows keep the discriminative candidate
+  // pool large enough for the registered family quotas. They are derived from
+  // concrete CLI-documented capabilities, not broad vendor marketing claims:
+  // constraint-preservation has five direct CLI sources, while
+  // transactional-record-recovery has six. Vendors not present in either map
+  // remain explicit N/A/inconclusive in the support matrix.
+  const derivedCapability = (
+    slug: string,
+    capabilityName: string,
+  ): { vendor: string; capability_name: string } | undefined => {
+    const extract = extracts.find((candidate) => candidate.slug.toLowerCase() === slug);
+    if (!extract) return undefined;
+    const capability = extract.capabilities.find((candidate) => candidate.capability_name === capabilityName);
+    return capability && capability.surfaces_documented.includes("cli")
+      ? { vendor: extract.vendor, capability_name: capability.capability_name }
+      : undefined;
+  };
+  const constraintSources = ([
+    ["cockroachdb", "integrity-constraints"],
+    ["neon", "baseline-sql-table-and-row-operations"],
+    ["nile", "primary-key-constraint"],
+    ["turso", "table-schema-definition"],
+    ["supabase", "primary-key-constraint"],
+  ] as const).map(([slug, capability]) => derivedCapability(slug, capability)).filter(
+    (entry): entry is { vendor: string; capability_name: string } => Boolean(entry),
+  );
+  if (constraintSources.length >= 5) {
+    clusters.set("constraint-preservation", {
+      concept_name: "constraint-preservation",
+      title: "Constraint Preservation Under a Rejected Write",
+      vendors_citing: constraintSources,
+    });
+  }
+  const transactionSources = ([
+    ["cockroachdb", "transactions"],
+    ["insforge", "baseline-sql-table-and-row-operations"],
+    ["neon", "baseline-sql-table-and-row-operations"],
+    ["nile", "multi-statement-transaction"],
+    ["turso", "transactional-consistency"],
+    ["supabase", "sql-query-execution"],
+  ] as const).map(([slug, capability]) => derivedCapability(slug, capability)).filter(
+    (entry): entry is { vendor: string; capability_name: string } => Boolean(entry),
+  );
+  if (transactionSources.length >= 5) {
+    clusters.set("transactional-record-recovery", {
+      concept_name: "transactional-record-recovery",
+      title: "Recover a Record After a Rolled-Back Transaction",
+      vendors_citing: transactionSources,
+    });
+  }
+  const aggregateSources = ([
+    ["cockroachdb", "aggregate-query"],
+    ["insforge", "baseline-sql-table-and-row-operations"],
+    ["neon", "baseline-sql-table-and-row-operations"],
+    ["nile", "relational-joins"],
+    ["turso", "aggregate-functions"],
+    ["supabase", "sql-query-execution"],
+  ] as const).map(([slug, capability]) => derivedCapability(slug, capability)).filter(
+    (entry): entry is { vendor: string; capability_name: string } => Boolean(entry),
+  );
+  if (aggregateSources.length === 6) {
+    clusters.set("aggregate-query", {
+      concept_name: "aggregate-query",
+      title: "Aggregate a Filtered Record Set",
+      vendors_citing: aggregateSources,
+    });
+  }
+
   return [...clusters.values()].sort((a, b) => {
     const aCoverage = new Set(a.vendors_citing.map((entry) => entry.vendor)).size;
     const bCoverage = new Set(b.vendors_citing.map((entry) => entry.vendor)).size;

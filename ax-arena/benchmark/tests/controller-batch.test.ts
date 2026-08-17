@@ -359,7 +359,7 @@ describe("arena batch comparability", () => {
       cells: [config.cells[0]!],
       harnesses: [config.harnesses[0]!],
       packs: [{ ...config.packs[0]!, host_credential_names: ["OPENAI_API_KEY"] }],
-    })).toThrow(/both Codex and Claude Code|Cartesian/);
+    })).toThrow(/Codex\+Claude Code|OpenCode route|Cartesian/);
     expect(() => resolveBatchIdentity(mkdtempSync(resolve(tmpdir(), "ax-arena-provider-control-")), "a".repeat(40), new Date(), {
       ...config,
       cells: config.cells.map((cell) => ({

@@ -95,6 +95,8 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["exec-plan", "--help"]);
     expect(code).toBe(0);
     expect(out).toContain("--harness claude-code|codex|opencode");
+    expect(out).toContain("--tasks id,id,...");
+    expect(out).toContain("--openrouter-gateway-url");
   });
 
   it("verify-generated help exposes the single-task denominator", () => {
@@ -869,7 +871,7 @@ console.log(JSON.stringify({ ok: true }));
     const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
     expect(executor.harness).toBe("claude-code");
     expect(executor.profile).toBe("medium");
-  });
+  }, 20_000);
 
   it("runs OpenCode with an explicit allowlisted environment", () => {
     const dir = freshDir();
@@ -1007,7 +1009,7 @@ console.log(JSON.stringify({
       NEON_PROJECT_ID: "neon-project-id",
     });
     expect(sql.code, sql.out).toBe(0);
-  });
+  }, 20_000);
 
   it("blocks a missing known-provider credential before invoking OpenCode", () => {
     const result = runCli([

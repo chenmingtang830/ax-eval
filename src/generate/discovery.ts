@@ -32,6 +32,10 @@ export interface DiscoveryResult {
   searches?: string[];
   urls_visited?: string[];
   endpoint_used?: string;
+  /** Objective CLI commands reconstructed from the harness transcript. When
+   * present, CLI canonical-action scoring checks the full observed command set
+   * instead of trusting one self-reported endpoint string. */
+  commands_used?: string[];
   auth_scheme_found?: string;
   /** True when the agent objectively reached the surface's authoritative LOCAL
    *  discovery source (CLI `--help`, SDK reference/import, or MCP `tools/list`).
@@ -79,6 +83,36 @@ function normEndpoint(e: string): string {
   const m = e.trim().match(/^([a-z]+)\s+(\S+)/i);
   if (!m) return e.trim().toLowerCase();
   return `${m[1]!.toUpperCase()} ${m[2]!.replace(/\/+$/, "")}`;
+}
+
+function isHttpCanonical(value: string): boolean {
+  return /^(?:GET|POST|PUT|PATCH|DELETE)\s+\//i.test(value.trim());
+}
+
+function cliCanonicalSignatures(value: string): string[][] {
+  return value
+    .split(/\s+or\s+/i)
+    .map((alternative) => {
+      const withoutEnv = alternative
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\$\{?[A-Z_][A-Z0-9_]*\}?/g, " ")
+        .replace(/\b[A-Z_][A-Z0-9_]{2,}\b/g, " ");
+      return (withoutEnv.toLowerCase().match(/[a-z0-9._-]+/g) ?? [])
+        .filter((token) => !new Set([
+          "with", "using", "via", "the", "declared", "connection", "string",
+          "url", "env", "environment", "variable",
+        ]).has(token));
+    })
+    .filter((tokens) => tokens.length > 0);
+}
+
+function commandContainsSignature(command: string, signature: readonly string[]): boolean {
+  const tokens = command.toLowerCase().match(/[a-z0-9._-]+/g) ?? [];
+  if (!signature.length || tokens.length < signature.length) return false;
+  for (let start = 0; start <= tokens.length - signature.length; start += 1) {
+    if (signature.every((token, offset) => tokens[start + offset] === token)) return true;
+  }
+  return false;
 }
 
 /**
@@ -168,7 +202,16 @@ export async function scoreDiscovery(
   const usedRaw = (result.endpoint_used ?? "").toLowerCase();
   let canonicalPassed: boolean;
   let canonicalDetail: string;
-  if (webOptional) {
+  if (surface === "cli" && !isHttpCanonical(spec.canonical_endpoint)) {
+    const commands = [...(result.commands_used ?? []), result.endpoint_used ?? ""].filter(Boolean);
+    const signatures = cliCanonicalSignatures(spec.canonical_endpoint);
+    canonicalPassed = signatures.length > 0
+      ? commands.some((command) => signatures.some((signature) => commandContainsSignature(command, signature)))
+      : !!used;
+    canonicalDetail = canonicalPassed
+      ? `observed canonical CLI signature (${signatures.map((signature) => signature.join(" ")).join(" | ") || "fallback"})`
+      : `canonical CLI signature not observed (${signatures.map((signature) => signature.join(" ")).join(" | ") || "fallback"})`;
+  } else if (webOptional) {
     canonicalPassed = !!used;
     canonicalDetail = `used=${used || "(none)"} (${surface}: canonical compared via round-trip oracle, not endpoint string)`;
   } else if (isGraphql) {
@@ -184,10 +227,11 @@ export async function scoreDiscovery(
 
   // 3) Hops to discovery (efficiency). Heuristic target: ≤ 3 searches.
   const hops = searches.length;
+  const localOnlyDiscovery = webOptional && discoveredLocally && hops === 0;
   metrics.push({
     id: "hops",
-    passed: hops > 0 && hops <= 3,
-    detail: `${hops} search(es), ${urls.length} page(s) visited`,
+    passed: localOnlyDiscovery || (hops > 0 && hops <= 3),
+    detail: `${hops} search(es), ${urls.length} page(s) visited${localOnlyDiscovery ? `; used ${DISCOVERY_SOURCE[surface]} locally` : ""}`,
   });
 
   // 4) Misled by an outdated / non-official source.
