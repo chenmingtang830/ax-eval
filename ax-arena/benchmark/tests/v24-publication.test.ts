@@ -32,6 +32,20 @@ describe("V2.4 frozen publication package", () => {
     }
   });
 
+  it("declares the public and external archive disposition", () => {
+    const evidence = json("evidence-index.json");
+    const archive = json("archive-manifest.json");
+    expect(archive).toMatchObject({
+      external_archive_required: false,
+      external_archives: [],
+      public_evidence: { disposition: "embedded-in-repository", root: "evidence/", archive_count: 28 },
+      raw_local_evidence: { disposition: "excluded-from-publication", locator_disclosed: false },
+    });
+    expect(archive.public_evidence.archive_count).toBe(evidence.archives.length);
+    expect(archive.public_evidence.file_count).toBeGreaterThan(100);
+    expect(archive.public_evidence.bytes).toBeGreaterThan(0);
+  });
+
   it("matches every committed SHA-256 and contains no workstation path", () => {
     const checksums = json("checksums.json");
     for (const entry of checksums.files) {

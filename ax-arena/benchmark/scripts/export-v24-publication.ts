@@ -15,6 +15,7 @@ const INPUTS = resolve(ROOT, process.env.DAEB_V24_SUMMARY_MANIFEST
   ?? "ax-arena/benchmark/axarena-database/v2-4/publication-inputs.json");
 const SUMMARY = resolve(ROOT, process.env.DAEB_V24_SUMMARY_ROOT
   ?? "results/v24-vendor-publication-summary-r3", "summary.json");
+const EVIDENCE_ROOT = resolve(process.env.DAEB_V24_EVIDENCE_ROOT ?? ROOT);
 const SUITE = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2-4/vendor-experience-suite.yaml");
 const LEDGER = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2-4/model-admission-ledger.json");
 const PUBLICATION_PARENT = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2-4");
@@ -108,7 +109,7 @@ export function build(): void {
   const evidenceSources: any[] = [];
   for (const model of inputs.models) for (const trial of model.trials) {
     for (const kind of ["atomic", "j01"] as const) {
-      const sourceRoot = resolve(ROOT, trial[`${kind}_audit_root`]);
+      const sourceRoot = resolve(EVIDENCE_ROOT, trial[`${kind}_audit_root`]);
       if (!statSync(sourceRoot).isDirectory()) throw new Error(`missing audit root: ${sourceRoot}`);
       const sourceFiles = inventory(sourceRoot);
       const archiveId = `${model.model.replaceAll("/", "_")}--${model.provider}--t${trial.trial}--${kind}`;
@@ -165,6 +166,27 @@ export function build(): void {
     path_policy: "workstation paths are replaced with workspace://ax-eval URIs in exported evidence",
     archives: evidenceSources,
   });
+  const embeddedEvidence = inventory(resolve(OUTPUT, "evidence"));
+  writeJson(resolve(OUTPUT, "archive-manifest.json"), {
+    schema: "ax.daeb-v2-4-archive-manifest/v1",
+    release: "V2.4",
+    public_evidence: {
+      disposition: "embedded-in-repository",
+      root: "evidence/",
+      archive_count: evidenceSources.length,
+      file_count: embeddedEvidence.length,
+      bytes: embeddedEvidence.reduce((total, entry) => total + entry.bytes, 0),
+      tree_sha256: sha(canonical(embeddedEvidence)),
+    },
+    external_archives: [],
+    external_archive_required: false,
+    rationale: "The sanitized final-audit evidence is small enough to ship directly in the release, so no external binary archive or mutable download dependency is required.",
+    raw_local_evidence: {
+      disposition: "excluded-from-publication",
+      locator_disclosed: false,
+      reason: "The raw local tree mixes admitted runs with preflight material and may contain workstation or credential-shaped metadata; the sanitized final-audit package is the public replay boundary.",
+    },
+  });
   writeFileSync(resolve(OUTPUT, "README.md"), `# AXArena Database V2.4 frozen publication data
 
 This directory is the deterministic, vendor-first public export for the V2.4
@@ -175,6 +197,7 @@ are supporting diagnostics and model/trial rows are supplementary slices.
 - \`model-slices.json\`: supplementary model-level J01 view.
 - \`tasks.json\`: the frozen atomic and J01 task contract.
 - \`evidence-index.json\`: source hashes for all 28 final-audit inputs.
+- \`archive-manifest.json\`: explicit embedded/external/raw archive disposition.
 - \`evidence/\`: sanitized final audits, observations, and reconciliation ledgers.
 - \`exclusions.json\`: retained invalid/diagnostic runs and their admission decisions.
 - \`checksums.json\`: SHA-256 inventory for every other file in this directory.

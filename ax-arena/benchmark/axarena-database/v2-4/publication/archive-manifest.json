@@ -1,0 +1,20 @@
+{
+  "schema": "ax.daeb-v2-4-archive-manifest/v1",
+  "release": "V2.4",
+  "public_evidence": {
+    "disposition": "embedded-in-repository",
+    "root": "evidence/",
+    "archive_count": 28,
+    "file_count": 114,
+    "bytes": 608158,
+    "tree_sha256": "b69b8fa58bb69dce3d529569f100d5d4d941c58b0981b91c7d77f872010808f3"
+  },
+  "external_archives": [],
+  "external_archive_required": false,
+  "rationale": "The sanitized final-audit evidence is small enough to ship directly in the release, so no external binary archive or mutable download dependency is required.",
+  "raw_local_evidence": {
+    "disposition": "excluded-from-publication",
+    "locator_disclosed": false,
+    "reason": "The raw local tree mixes admitted runs with preflight material and may contain workstation or credential-shaped metadata; the sanitized final-audit package is the public replay boundary."
+  }
+}

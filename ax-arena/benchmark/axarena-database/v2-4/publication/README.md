@@ -8,6 +8,7 @@ are supporting diagnostics and model/trial rows are supplementary slices.
 - `model-slices.json`: supplementary model-level J01 view.
 - `tasks.json`: the frozen atomic and J01 task contract.
 - `evidence-index.json`: source hashes for all 28 final-audit inputs.
+- `archive-manifest.json`: explicit embedded/external/raw archive disposition.
 - `evidence/`: sanitized final audits, observations, and reconciliation ledgers.
 - `exclusions.json`: retained invalid/diagnostic runs and their admission decisions.
 - `checksums.json`: SHA-256 inventory for every other file in this directory.

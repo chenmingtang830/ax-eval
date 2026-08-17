@@ -3,6 +3,11 @@
   "algorithm": "sha256",
   "files": [
     {
+      "path": "archive-manifest.json",
+      "bytes": 880,
+      "sha256": "5e29a1917a754a3bf6372b6187cbbae89a9c2bd2f21dbef5c6839f90a701b286"
+    },
+    {
       "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--atomic/final-atomic-audit.json",
       "bytes": 570,
       "sha256": "8037629fd0ace3ea4fb396ec4911e0cf849c5338feca4fdd3b3b03da879d9bac"
@@ -599,8 +604,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 1181,
-      "sha256": "0ddd3ffa353c98514427c0f76d7d6ffb1e9a2da7c01f24ae0abfbcc0f612e4ab"
+      "bytes": 1260,
+      "sha256": "2f785cb5720399dbab783e6287efd8549608cfee95b53af0a1257bf647a5707c"
     },
     {
       "path": "tasks.json",
@@ -613,5 +618,5 @@
       "sha256": "9276db7c0362517c3008e2f490f6951c31c6490b43906c243f59c6144515721b"
     }
   ],
-  "tree_sha256": "16d9b93665db1b948b6d9980d5240445ec47b9ce7c49f48dfe3a9137dcaa356b"
+  "tree_sha256": "fba76aed73f535d1bb9124435d5b77bd6463a5536d42f3992805f97669094500"
 }
