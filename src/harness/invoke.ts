@@ -25,6 +25,7 @@ import { redactSensitiveText as redactCommonSensitiveText } from "../safety/reda
 import type { ChildProcessSandbox, ChildSandboxProvenance } from "./child-sandbox.js";
 import { isOpenCodeModelRoute } from "./opencode.js";
 import { isPiModelRoute, piModelId, piProviderId } from "./pi.js";
+import type { OpenRouterRoutePolicy } from "./openrouter-gateway.js";
 
 export type InvokeHarnessId = "claude-code" | "codex" | "opencode" | "pi";
 
@@ -65,11 +66,20 @@ export interface InvokeRunOptions {
    *  `provider/model` route;
    *  Claude Code and Codex may still use their configured default. */
   model?: string;
+  /** V2.1 controller-owned route pin. Harnesses use a local OpenRouter gateway
+   * and must never silently change model or provider. */
+  openrouterRoutePolicy?: OpenRouterRoutePolicy;
+  /** Loopback gateway base URL (for example http://127.0.0.1:43123/v1). */
+  openrouterGatewayUrl?: string;
   /** Canonical effort level. Translated to each harness's native convention at
    *  invocation: codex → `-c model_reasoning_effort=<level>` (the GPT/o-series
    *  convention); claude-code → `--effort <level>` on modern Claude Code.
    *  OpenCode intentionally keeps the model's default variant in the MVP. */
   effort?: "low" | "medium" | "high";
+  /** Run Claude Code in its non-interactive automatic permission mode. This is
+   * only enabled by an explicit production/sandbox caller; ordinary CLI use
+   * keeps the operator's normal approval policy. */
+  autonomousPermissions?: boolean;
   /** Hard wall-clock cap per attempt, in milliseconds. When a harness child
    *  exceeds it, it is killed and the attempt counts as a timeout failure
    *  (eligible for a retry). 0 / undefined disables the cap. */
@@ -248,11 +258,21 @@ export type AsyncSpawn = (
 export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
   new Promise<ProcResult>((resolve) => {
     const startedAt = Date.now();
+    // Bun/OpenCode expects the shell's cwd variables even when the controller
+    // deliberately replaces the ambient environment. Keep them bound to the
+    // isolated child cwd rather than leaking the controller checkout path.
+    const childEnv = opts?.replaceEnv
+      ? { ...(opts.env ?? {}), PWD: cwd, OLDPWD: cwd }
+      : opts?.env
+        ? { ...process.env, ...opts.env }
+        : process.env;
     const child = spawn(command, args, {
       cwd,
-      detached: true,
+      // Keep the child in this process group so an interrupted OpenCode cell
+      // cannot leave descendants holding the controller's stdout/stderr pipes.
+      detached: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env: opts?.replaceEnv ? (opts.env ?? {}) : opts?.env ? { ...process.env, ...opts.env } : process.env,
+      env: childEnv,
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
@@ -265,6 +285,7 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     let outputPoll: NodeJS.Timeout | undefined;
     let outputReadyTimer: NodeJS.Timeout | undefined;
     let firstActionLatencyMs: number | null = null;
+    let finished = false;
     const successPaths = opts?.successPaths?.filter(Boolean) ?? [];
     const outputsReady = () => successPaths.length > 0 && successPaths.every((p) => existsSync(p));
     const killChild = (signal: NodeJS.Signals) => {
@@ -323,6 +344,8 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
       }, 500);
     }
     const finish = (r: ProcResult) => {
+      if (finished) return;
+      finished = true;
       if (timer) clearTimeout(timer);
       if (firstActionTimer) clearTimeout(firstActionTimer);
       if (killTimer) clearTimeout(killTimer);
@@ -356,7 +379,12 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     });
     child.stderr?.on("data", (d: Buffer) => err.push(d));
     child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut, timeoutReason }));
-    child.on("close", (status, signal) => {
+    // OpenCode can leave a descendant with inherited output pipes after its
+    // command process exits. Waiting for `close` then strands the controller
+    // forever even though no agent remains. `exit` is the process lifecycle
+    // boundary; buffered output observed before it is retained and all later
+    // artifact/trace validation remains unchanged.
+    child.on("exit", (status, signal) => {
       const afterOutputs = completedAfterOutputs && outputsReady();
       finish({
         stdout: Buffer.concat(out),
@@ -604,6 +632,35 @@ function persistedHarnessOutput(
   );
 }
 
+/** Persist harness JSONL without applying replacements to serialized JSON.
+ * Exact credentials can contain quotes, backslashes, or control characters;
+ * replacing their encoded representation in the whole stream can invalidate
+ * the surrounding JSON and silently erase transcript evidence. Parse first,
+ * redact decoded string values, then serialize each event again. */
+function persistedTranscriptOutput(
+  harness: InvokeHarnessId,
+  value: string,
+  exactValues: readonly string[] = [],
+): string {
+  if (containsShortExactRedactionValue(value, exactValues)) {
+    return "<redacted-sensitive-text>";
+  }
+  const source = harness === "opencode" ? sanitizedOpenCodeStream(value) : value;
+  const hadTrailingNewline = source.endsWith("\n");
+  const lines = source.split("\n");
+  if (hadTrailingNewline) lines.pop();
+  const persisted = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return "";
+    try {
+      return JSON.stringify(redactJsonArtifactValue(JSON.parse(trimmed), exactValues));
+    } catch {
+      return JSON.stringify({ type: "redacted_unparseable", content: "<redacted-unparseable>" });
+    }
+  }).join("\n");
+  return hadTrailingNewline ? `${persisted}\n` : persisted;
+}
+
 function assertContainedParent(path: string, allowedRoot = dirname(path)): void {
   const root = resolve(allowedRoot);
   const parent = resolve(dirname(path));
@@ -700,15 +757,6 @@ function validTraceFile(path: string): boolean {
   } catch {
     return false;
   }
-}
-
-function writeRedactedFile(path: string, value: string, exactValues: readonly string[] = []): void {
-  replaceFileWithoutFollowing(path, redactHarnessArtifactText(value, exactValues));
-}
-
-function redactFileIfExists(path: string, exactValues: readonly string[] = []): void {
-  if (!regularFileExists(path)) return;
-  writeRedactedFile(path, readRegularFileNoFollow(path).toString("utf8"), exactValues);
 }
 
 function isInvokeHomePath(path: string): boolean {
@@ -959,18 +1007,33 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   if (id === "claude-code") {
     const modelArgs = opts.model ? ["--model", opts.model] : [];
     const effortArgs = opts.effort ? ["--effort", opts.effort] : [];
+    const permissionArgs = opts.autonomousPermissions
+      ? ["--allow-dangerously-skip-permissions", "--permission-mode", "bypassPermissions"]
+      : [];
     // stream-json emits the full event stream (assistant tool_use, tool_result,
     // …) to stdout, ending with a `type:result` line — so the transcript carries
     // REAL tool events for --observe discovery scoring, not just a summary blob.
     // Print mode requires --verbose for stream-json.
     return {
       command: opts.harnessDetection?.command ?? commandFor("claude-code"),
-      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
+      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...permissionArgs, ...modelArgs, ...effortArgs],
     };
   }
   if (id === "opencode") {
     if (!isOpenCodeModelRoute(opts.model)) {
       throw new Error("OpenCode invocation requires an explicit provider/model route");
+    }
+    const routeModel = opts.openrouterRoutePolicy
+      ? "openrouter/" + opts.openrouterRoutePolicy.canonical_model
+      : opts.model;
+    if (opts.openrouterRoutePolicy
+      && ![
+        opts.openrouterRoutePolicy.model,
+        opts.openrouterRoutePolicy.canonical_model,
+        `openrouter/${opts.openrouterRoutePolicy.model}`,
+        `openrouter/${opts.openrouterRoutePolicy.canonical_model}`,
+      ].includes(opts.model)) {
+      throw new Error("OpenRouter route policy model mismatch: " + (opts.model ?? "<missing>"));
     }
     // OpenCode exposes provider-specific reasoning effort through --variant.
     // The controller only accepts the portable low/medium/high subset and
@@ -984,8 +1047,12 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
         "run",
         "--format", "json",
         "--auto",
+        // Supplying a deterministic title prevents OpenCode from issuing a
+        // separate default-model title-generation request before the pinned
+        // task model. That extra request would violate V2.1 route identity.
+        "--title", "AX-eval V2.1 invocation",
         "--pure",
-        "--model", opts.model,
+        "--model", routeModel,
         ...(opts.effort ? ["--variant", opts.effort] : []),
         prompt,
       ],
@@ -998,12 +1065,23 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     // JSON mode preserves an objective tool-event transcript. Every user,
     // project, and package customization is disabled so a cell is comparable
     // across operators; the controller-owned prompt remains the sole policy.
+    const routeModel = opts.openrouterRoutePolicy?.canonical_model ?? piModelId(opts.model);
+    const routeProvider = opts.openrouterRoutePolicy ? "openrouter" : piProviderId(opts.model);
+    if (opts.openrouterRoutePolicy
+      && ![
+        opts.openrouterRoutePolicy.model,
+        opts.openrouterRoutePolicy.canonical_model,
+        `openrouter/${opts.openrouterRoutePolicy.model}`,
+        `openrouter/${opts.openrouterRoutePolicy.canonical_model}`,
+      ].includes(opts.model)) {
+      throw new Error("OpenRouter route policy model mismatch: " + (opts.model ?? "<missing>"));
+    }
     return {
       command: opts.harnessDetection?.command ?? commandFor("pi"),
       args: [
-        "--mode", "json", "--no-session", "--offline",
+        "--mode", "json", "--no-session",
         "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
-        "--provider", piProviderId(opts.model), "--model", piModelId(opts.model),
+        "--provider", routeProvider, "--model", routeModel,
         ...(opts.effort ? ["--thinking", opts.effort] : []),
         prompt,
       ],
@@ -1709,6 +1787,12 @@ async function runInvokeHarnessInner(
   opts: InvokeRunOptions,
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
+  if (opts.openrouterRoutePolicy && opts.effort !== "high") {
+    throw new Error("V2.1 OpenRouter-routed invocations require high reasoning effort");
+  }
+  if (opts.openrouterRoutePolicy && (opts.retries ?? 0) !== 0) {
+    throw new Error("V2.1 OpenRouter-routed invocations disable model-level retries");
+  }
   const startedAt = Date.now();
   const artifactDir = dirname(opts.paths.resultsPath);
   const artifactIdentity = directoryIdentity(artifactDir);
@@ -1858,7 +1942,7 @@ async function runInvokeHarnessInner(
   // OpenCode tool output is additionally omitted before this durable copy.
   replaceFileWithoutFollowing(
     opts.paths.transcriptPath,
-    persistedHarnessOutput(opts.harness, stdout || stderr, opts.redactionValues),
+    persistedTranscriptOutput(opts.harness, stdout || stderr, opts.redactionValues),
   );
   if (invokeHomeIdentity) assertDirectoryIdentity(invokeHomeRoot, invokeHomeIdentity);
 
@@ -1895,23 +1979,21 @@ async function runInvokeHarnessInner(
     const failureArtifactStamp = stampResultFile(opts, metrics);
     if (!failureArtifactStamp.ok && !stamp.error) stamp = failureArtifactStamp;
   }
-  if (unsafeShortValueInAnyArtifact) {
-    // These files were rebuilt entirely from controller-owned fields. Redact
-    // JSON string values recursively so even a coincidental short match cannot
-    // turn either artifact into an unparsable plain-text placeholder.
-    writeRedactedJsonFile(
-      opts.paths.resultsPath,
-      JSON.parse(readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8")),
-      opts.redactionValues ?? [],
-    );
+  // Result and trace artifacts have already passed JSON validation above.
+  // Redacting their serialized bytes can consume an adjacent escape sequence
+  // (for example a token immediately before an escaped quote), corrupting the
+  // evidence after it was admitted. Redact parsed string values instead.
+  writeRedactedJsonFile(
+    opts.paths.resultsPath,
+    JSON.parse(readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8")),
+    opts.redactionValues ?? [],
+  );
+  if (regularFileExists(opts.paths.tracePath)) {
     writeRedactedJsonFile(
       opts.paths.tracePath,
       JSON.parse(readRegularFileNoFollow(opts.paths.tracePath).toString("utf8")),
       opts.redactionValues ?? [],
     );
-  } else {
-    redactFileIfExists(opts.paths.resultsPath, opts.redactionValues);
-    redactFileIfExists(opts.paths.tracePath, opts.redactionValues);
   }
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
@@ -1981,7 +2063,23 @@ async function runInvokeHarnessInner(
   };
   writeRedactedJsonFile(
     opts.paths.metaPath,
-    { ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning },
+    {
+      ...meta,
+      command,
+      args,
+      cwd: opts.cwd,
+      promptPath: opts.paths.promptPath,
+      provisioning: opts.provisioning,
+      ...(opts.openrouterRoutePolicy ? {
+        openrouter_route: {
+          requested_model: opts.openrouterRoutePolicy.model,
+          canonical_model: opts.openrouterRoutePolicy.canonical_model,
+          provider: opts.openrouterRoutePolicy.provider,
+          gateway_url: opts.openrouterGatewayUrl ?? null,
+          allow_fallbacks: false,
+        },
+      } : {}),
+    },
     opts.redactionValues ?? [],
   );
   return meta;

@@ -6,6 +6,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/claude-code": "2.1.217",
-    "@openai/codex": "0.145.0"
+    "@openai/codex": "0.145.0",
+    "opencode-ai": "1.18.10"
   }
 }

@@ -120,7 +120,7 @@ function createBatch(root: string, betaSurfaces: Array<"api" | "cli"> = ["api", 
 function record(input: {
   product: string;
   surface: "api" | "cli";
-  harness: "codex" | "claude-code";
+  harness: "codex" | "claude-code" | "opencode";
   rate: number;
   overrides?: Record<string, unknown>;
 }): any {

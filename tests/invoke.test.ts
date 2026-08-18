@@ -242,7 +242,7 @@ describe("runInvokeHarness", () => {
     const run = opts(dir, "pi");
     await runInvokeHarness({ ...run, effort: "high", harnessDetection: { ok: true, command: "pi", version: "0.51.0" } }, async (command, args) => {
       expect(command).toBe("pi");
-      expect(args).toEqual(expect.arrayContaining(["--mode", "json", "--no-session", "--offline", "--no-extensions", "--no-skills", "--no-context-files", "--provider", "openrouter", "--model", "example-model", "--thinking", "high"]));
+      expect(args).toEqual(expect.arrayContaining(["--mode", "json", "--no-session", "--no-extensions", "--no-skills", "--no-context-files", "--provider", "openrouter", "--model", "example-model", "--thinking", "high"]));
       writeFileSync(run.paths.resultsPath, JSON.stringify({ results: { t1: { gid: "pi-1" } } }));
       writeFileSync(run.paths.tracePath, "[]");
       return spawnResult({ stdout: Buffer.from('{"type":"agent_end","messages":[]}\n') });
@@ -319,6 +319,23 @@ describe("runInvokeHarness", () => {
     expect(executor.model).toBe("claude-sonnet-5");
   });
 
+  it("passes Claude's automatic permission mode only when explicitly requested", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const spawn: AsyncSpawn = async (_command, args) => {
+      expect(args).toContain("--allow-dangerously-skip-permissions");
+      expect(args).toContain("--permission-mode");
+      expect(args).toContain("bypassPermissions");
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: "medium", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "gid-1" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+    const result = await runInvokeHarness({ ...run, autonomousPermissions: true }, spawn);
+    expect(result.ok).toBe(true);
+  });
+
   it("passes the persisted OpenCode effort through as the provider variant", async () => {
     const dir = freshDir();
     const run = opts(dir, "opencode");
@@ -328,6 +345,7 @@ describe("runInvokeHarness", () => {
         "run",
         "--format", "json",
         "--auto",
+        "--title", "AX-eval V2.1 invocation",
         "--pure",
         "--model", "openrouter/anthropic/claude-sonnet-4.5",
         "--variant", "high",
@@ -838,6 +856,45 @@ describe("runInvokeHarness", () => {
       expect(persisted).not.toContain(secret);
     }
     expect(readFileSync(run.paths.transcriptPath, "utf8")).toContain("<redacted>");
+  });
+
+  it("redacts decoded Pi JSONL values before serialization so transcript evidence stays parseable", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "pi");
+    const secret = "opaque-credential-with-quote-\"-and-backslash-\\";
+    const events = [
+      {
+        type: "tool_execution_start",
+        toolCallId: "pi-secret",
+        toolName: "bash",
+        args: { command: `node -e ${JSON.stringify(`use ${secret}`)}` },
+      },
+      {
+        type: "tool_execution_start",
+        toolCallId: "pi-safe",
+        toolName: "bash",
+        args: { command: "turso db show $DAEB_NATIVE_STALE_TARGET" },
+      },
+    ];
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        discovery: {},
+        results: { t1: { gid: "g" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from(events.map((event) => JSON.stringify(event)).join("\n")) });
+    };
+
+    await runInvokeHarness({ ...run, redactionValues: [secret] }, spawn);
+    const persisted = readFileSync(run.paths.transcriptPath, "utf8");
+    const parsed = persisted.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].args.command).toContain("<redacted>");
+    expect(parsed[1].args.command).toContain("DAEB_NATIVE_STALE_TARGET");
+    expect(persisted).not.toContain(secret);
   });
 
   it("fails closed with parseable artifacts when a short exact credential reaches structured output", async () => {
@@ -1478,6 +1535,20 @@ describe("runInvokeHarness", () => {
     expect(result.status).toBe(0);
     expect(result.timedOut).toBe(false);
     expect(Date.now() - started).toBeLessThan(10000);
+  });
+
+  it("binds replacement-env cwd variables to the isolated child workspace", async () => {
+    const dir = freshDir();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      "/usr/bin/env",
+      [],
+      dir,
+      { replaceEnv: true, env: { PATH: "/bin" } },
+    );
+    expect(result.status).toBe(0);
+    const output = String(result.stdout);
+    expect(output).toContain(`PWD=${dir}`);
+    expect(output).toContain(`OLDPWD=${dir}`);
   });
 
   it("terminates a no-action child at the first-action timeout", async () => {

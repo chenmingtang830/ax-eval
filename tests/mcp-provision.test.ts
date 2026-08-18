@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import { defaultInvokePaths } from "../src/harness/invoke.js";
@@ -124,11 +124,12 @@ describe("provisionHarnessForSurface", () => {
 
   it("isolates every OpenCode non-MCP run across config, data, cache, and state", async () => {
     const dir = freshDir();
+    const firstPaths = defaultInvokePaths(dir, "opencode-low-api", "opencode");
     const first = await provisionHarnessForSurface({
       pack: pack(),
       harness: "opencode",
       surface: "api",
-      paths: defaultInvokePaths(dir, "opencode-low-api", "opencode"),
+      paths: firstPaths,
       cwd: "/repo",
       env: {
         OPENCODE_CONFIG_DIR: "/ambient/opencode-config",
@@ -144,10 +145,6 @@ describe("provisionHarnessForSurface", () => {
       cwd: "/repo",
       isolateWorkspace: true,
     });
-    for (const root of [first.meta?.opencode_work_root, second.meta?.opencode_work_root]) {
-      if (typeof root === "string") dirs.push(root);
-    }
-
     expect(first.env.HOME).toContain(".invoke-home");
     expect(first.env.HOME).not.toBe(second.env.HOME);
     for (const name of [
@@ -167,17 +164,83 @@ describe("provisionHarnessForSurface", () => {
     expect(first.env.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
     expect(first.env.OPENCODE_ENABLE_EXA).toBe("1");
     expect(first.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
-    expect(first.meta?.opencode_work_dir).toEqual(expect.stringContaining("ax-eval-opencode-"));
+    expect(first.meta?.opencode_work_dir).toEqual(dirname(firstPaths.resultsPath));
     expect(first.meta?.opencode_work_dir).not.toContain("/repo");
     expect(existsSync(first.meta?.opencode_work_dir as string)).toBe(true);
     const config = JSON.parse(readFileSync(resolve(first.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
     expect(config).toEqual({
       mcp: {},
-      permission: { task: "deny" },
+      permission: {
+        task: "deny",
+        external_directory: "deny",
+        bash: "deny",
+        api_request: "allow",
+        complete_api_bootstrap: "allow",
+      },
       share: "disabled",
       autoshare: false,
     });
+    expect(first.meta?.opencode_api_request_tool).toBe("api_request");
+    expect(first.meta?.opencode_api_bootstrap_output_tool).toBe("complete_api_bootstrap");
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
+  });
+
+  it("pins both Pi and OpenCode to the local OpenRouter gateway", async () => {
+    const dir = freshDir();
+    const policy = {
+      model: "deepseek/deepseek-v4-flash-20260731",
+      canonical_model: "deepseek/deepseek-v4-flash-20260731",
+      provider: "deepseek",
+    } as const;
+    const piPaths = defaultInvokePaths(dir, "pi-v21", "pi");
+    const pi = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "pi",
+      surface: "cli",
+      paths: piPaths,
+      cwd: "/repo",
+      isolateWorkspace: true,
+      openrouterGateway: { baseUrl: "http://127.0.0.1:43123/v1", policy },
+    });
+    expect(pi.env.PI_CODING_AGENT_DIR).toContain(".invoke-home");
+    expect(pi.env.TMPDIR).toBe(resolve(pi.env.PI_CODING_AGENT_DIR!, "tmp"));
+    expect(pi.env.OPENROUTER_API_KEY).toBe("ax-eval-local-gateway");
+    expect(pi.meta?.pi_work_dir).toBe(dirname(piPaths.resultsPath));
+    const models = JSON.parse(readFileSync(resolve(pi.env.PI_CODING_AGENT_DIR!, "models.json"), "utf8"));
+    expect(models.providers.openrouter.baseUrl).toBe("http://127.0.0.1:43123/v1");
+    expect(models.providers.openrouter.models[0].id).toBe(policy.canonical_model);
+    const piSettings = JSON.parse(readFileSync(resolve(pi.env.PI_CODING_AGENT_DIR!, "settings.json"), "utf8"));
+    expect(piSettings.retry).toEqual({ enabled: false, maxRetries: 0, provider: { maxRetries: 0 } });
+
+    const opencode = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "opencode",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "opencode-v21", "opencode"),
+      cwd: "/repo",
+      isolateWorkspace: true,
+      openrouterGateway: { baseUrl: "http://127.0.0.1:43123/v1", policy },
+    });
+    const config = JSON.parse(readFileSync(resolve(opencode.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
+    expect(config.provider.openrouter.options.baseURL).toBe("http://127.0.0.1:43123/v1");
+    expect(config.provider.openrouter.models[policy.canonical_model]).toEqual({});
+  });
+
+  it("prewarms a pinned OpenCode provider catalog inside the isolated home", async () => {
+    const dir = freshDir();
+    const provisioning = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "opencode",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "opencode-deepseek-cli", "opencode"),
+      cwd: dir,
+      command: "/usr/bin/true",
+      model: "openrouter/deepseek/deepseek-v4-flash-0731",
+      env: { OPENROUTER_API_KEY: "test-secret" },
+      isolateWorkspace: true,
+    });
+    expect(provisioning.meta?.opencode_model_catalog_refresh).toBe("ok");
+    expect(JSON.stringify(provisioning.meta)).not.toContain("test-secret");
   });
 
   it("enumerates and fails closed on OpenCode managed config sources", () => {

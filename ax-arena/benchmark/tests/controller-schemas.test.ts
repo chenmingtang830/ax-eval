@@ -449,6 +449,33 @@ describe("arena batch schemas", () => {
       ...production,
       cells: production.cells.map((cell, index) => index === 0 ? { ...cell, model: "unfrozen" } : cell),
     }).success).toBe(false);
+
+    const openCodeProduction: ArenaBatchConfiguration = {
+      ...production,
+      packs: [{ ...production.packs[0]!, host_credential_names: ["OPENROUTER_API_KEY"] }],
+      cells: [1, 2, 3].map((trial) => ({
+        key: `neon/api/opencode/trial-${trial}`,
+        vendor: "neon",
+        surface: "api",
+        harness: "opencode",
+        profile: "high",
+        effort: "high",
+        model: "openrouter/z-ai/glm-5.2",
+        trial,
+        host_credential_names: ["OPENROUTER_API_KEY"],
+        verification_credential_names: ["DATABASE_URL"],
+        reset_credential_names: ["DATABASE_URL"],
+        sandbox_scope_names: [],
+        provider_pins: [],
+        reset_provider: { id: "reset", version: "1.0.0" },
+      })),
+      harnesses: [{ harness: "opencode", version_raw: "opencode 1.18.10", version_semver: "1.18.10" }],
+    };
+    expect(ArenaBatchConfigurationSchema.safeParse(openCodeProduction).success).toBe(true);
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...openCodeProduction,
+      cells: openCodeProduction.cells.map((cell, index) => index === 0 ? { ...cell, model: "openrouter/other" } : cell),
+    }).success).toBe(false);
   });
 });
 

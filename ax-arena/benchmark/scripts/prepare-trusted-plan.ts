@@ -55,14 +55,19 @@ const batch = resolveBatchIdentity(runRoot, sourceSha, new Date(), configuration
 const plan = writeBatchPlan(runRoot, batch);
 const sandbox = batch.configuration.sandbox;
 const harnesses = new Map(batch.configuration.harnesses.map((pin) => [pin.harness, pin]));
+const expectedHarnesses = {
+  codex: runtime.lock.harnesses.codex,
+  "claude-code": runtime.lock.harnesses.claude_code,
+  opencode: runtime.lock.harnesses.opencode,
+};
 if (!sandbox
   || sandbox.runtime_lock_sha256 !== runtime.sha256
   || sandbox.executable !== runtime.lock.bubblewrap.executable_path
   || sandbox.executable_sha256 !== runtime.lock.bubblewrap.executable_sha256
-  || harnesses.get("codex")?.version_semver !== runtime.lock.harnesses.codex.version
-  || harnesses.get("codex")?.version_raw !== runtime.lock.harnesses.codex.version_output
-  || harnesses.get("claude-code")?.version_semver !== runtime.lock.harnesses.claude_code.version
-  || harnesses.get("claude-code")?.version_raw !== runtime.lock.harnesses.claude_code.version_output
+  || [...harnesses.entries()].some(([harness, pin]) => {
+    const expected = expectedHarnesses[harness as keyof typeof expectedHarnesses];
+    return !expected || pin.version_semver !== expected.version || pin.version_raw !== expected.version_output;
+  })
   || (batch.configuration.turso_cli
     && (batch.configuration.turso_cli.version !== runtime.lock.turso_cli.version_output
       || batch.configuration.turso_cli.sha256 !== runtime.lock.turso_cli.executable_sha256))) {

@@ -117,6 +117,10 @@ export interface RunCellOptions {
   signal?: AbortSignal;
   /** Trusted controllers use this for the harness process and version probe. */
   sandbox?: ChildProcessSandbox;
+  /** Local-only opt-in to use an operator's managed Codex/Claude login in the
+   * isolated harness HOME when its declared API key is absent. Hosted execution
+   * leaves this false and therefore requires the declared key. */
+  allowAmbientHarnessAuth?: boolean;
 }
 
 export interface CellRuntimeDependencies {
@@ -1053,7 +1057,11 @@ export async function runCellWithRuntime(
       providerProvenance,
     });
   }
-  const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
+  const missingDeclared = cell.required_credentials.filter((name) => !credentials[name] && !(
+    options.allowAmbientHarnessAuth === true
+    && ((cell.harness.id === "codex" && name === "OPENAI_API_KEY")
+      || (cell.harness.id === "claude-code" && name === "ANTHROPIC_API_KEY"))
+  ));
   const missingOpenCodeProvider = cell.harness.id === "opencode"
     ? openCodeProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
     : [];
@@ -1227,7 +1235,7 @@ export async function runCellWithRuntime(
       cwd,
       env: baseEnv,
       allowDownloads: false,
-      allowAmbientHarnessAuth: false,
+      allowAmbientHarnessAuth: options.allowAmbientHarnessAuth === true,
       isolateWorkspace: (cell.harness.id === "opencode" || cell.harness.id === "pi") && !options.sandbox,
     });
     provisioning = mergeExtensionProvisioning(
@@ -1277,6 +1285,12 @@ export async function runCellWithRuntime(
     tracePath: paths.tracePath,
     surface: getSurface(cell.surface),
     isolatedWorkspace: cell.harness.id === "opencode" || cell.harness.id === "pi",
+    apiRequestTool: typeof provisioning.meta?.opencode_api_request_tool === "string"
+      ? provisioning.meta.opencode_api_request_tool
+      : undefined,
+    apiBootstrapOutputTool: typeof provisioning.meta?.opencode_api_bootstrap_output_tool === "string"
+      ? provisioning.meta.opencode_api_bootstrap_output_tool
+      : undefined,
   });
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
   replaceFileWithoutFollowing(paths.promptPath, prompt);
@@ -1450,6 +1464,14 @@ export async function runCellWithRuntime(
   });
   const base = buildNormalizedResult(pack, cell.surface, cell.harness.id, [profileRun], null);
   const completedAt = runtime.now().toISOString();
+  // A successful process exit is not enough to claim a completed cell. A
+  // harness can stop after discovery/authentication and leave a syntactically
+  // valid result object with no task outcomes. Treat that as a failed
+  // invocation/verification boundary so the normalized record remains
+  // internally consistent (`best_profile` is only meaningful for a run with
+  // at least one scored outcome).
+  const noTaskOutcomes = selectedTasks.length > 0 && outcomes.length === 0;
+  const recordStatus = invoke.ok && !verifyError && !noTaskOutcomes ? "completed" : "failed";
   const record = {
     ...base,
     schema: NORMALIZED_CELL_RECORD_SCHEMA,
@@ -1473,13 +1495,14 @@ export async function runCellWithRuntime(
     requested_model: cell.harness.model,
     started_at: startedAt,
     completed_at: completedAt,
-    status: invoke.ok && !verifyError ? "completed" : "failed",
+    status: recordStatus,
     error: verifyError
       ? { stage: "verify", message: verifyError }
-      : invoke.ok ? null : {
-          stage: "invoke",
-          message: safeMessage(invoke.error ?? "harness invocation failed", secrets),
-        },
+      : !invoke.ok
+        ? { stage: "invoke", message: safeMessage(invoke.error ?? "harness invocation failed", secrets) }
+        : noTaskOutcomes
+          ? { stage: "verify", message: "executor returned no task outcomes" }
+          : null,
     ...recordProvenance(providerProvenance),
     ...(invoke.sandbox_provenance ? { sandbox_provenance: invoke.sandbox_provenance } : {}),
     task_results: outcomes,

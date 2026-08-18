@@ -1134,8 +1134,7 @@ function assertCanonicalPublicationManifest(input: {
   const { bundleRoot, bundle, batch, report, suite, expectedMethodology, snapshots, normalizedRecords, roster, economics } = input;
   const expectedSurfaces = (["api", "cli", "sdk", "mcp"] as const).filter((surface) =>
     batch.configuration.cells.some((cell) => cell.surface === surface));
-  const expectedHarnesses = (["codex", "claude-code"] as const).filter((harness) =>
-    batch.configuration.cells.some((cell) => cell.harness === harness));
+  const expectedHarnesses = batch.configuration.harnesses.map((entry) => entry.harness);
   const expectedProfiles = [...new Set(batch.configuration.cells.map((cell) => cell.profile))].sort();
   const expectedCells = new Set(batch.configuration.cells.map((cell) => `${cell.vendor}/${cell.surface}/${cell.harness}`)).size;
   const aggregateRecords = report.aggregates.map((entry) => {
@@ -1185,7 +1184,7 @@ function assertCanonicalPublicationManifest(input: {
     },
     {
       id: "canonical-execution-config", label: "Production records use the frozen execution configuration", status: "pass",
-      detail: "gpt-5.6-terra and claude-sonnet-5, high effort, 3 trials, one run batch, and one version per harness.",
+      detail: "Frozen production harness/model route, high effort, 3 trials, one run batch, and one version per harness.",
     },
     {
       id: "trace-attribution", label: "Trace coverage supports process attribution", status: traceIssues.length ? "warn" : "pass",

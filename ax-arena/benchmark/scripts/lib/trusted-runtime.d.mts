@@ -21,6 +21,7 @@ export interface TrustedRuntimeLock {
     package_lock_sha256: string;
     codex: TrustedToolPin;
     claude_code: TrustedToolPin;
+    opencode: TrustedToolPin;
   };
   bubblewrap: TrustedToolPin;
   turso_cli: TrustedToolPin;

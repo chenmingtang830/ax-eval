@@ -1,10 +1,18 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
+import { tasksForSurface } from "../surface/index.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
-import { findOpenCodeManagedConfig } from "./opencode.js";
+import {
+  findOpenCodeManagedConfig,
+  isOpenCodeModelRoute,
+  openCodeProviderCredentialNames,
+  openCodeProviderId,
+} from "./opencode.js";
+import type { OpenRouterRoutePolicy } from "./openrouter-gateway.js";
 
 export interface HarnessProvisioning {
   /** Environment overrides for the harness child process. */
@@ -38,6 +46,53 @@ function tomlArray(values: string[]): string {
   return `[${values.map(tomlString).join(", ")}]`;
 }
 
+function writePiHome(opts: {
+  paths: InvokePaths;
+  cwd: string;
+  gateway?: { baseUrl: string; policy: OpenRouterRoutePolicy };
+}): { home: string; workDir: string; tempDir: string; modelsPath?: string } {
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", stem + "-pi");
+  const workDir = dirname(opts.paths.resultsPath);
+  rmSync(home, { recursive: true, force: true });
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  // Pi's Bash tool creates per-command logs under TMPDIR. The shared macOS
+  // temp root can contain files owned by another sandboxed process, which
+  // makes an otherwise valid run terminate with EPERM. Keep those logs in
+  // this run's private, disposable home instead.
+  const tempDir = resolve(home, "tmp");
+  mkdirSync(tempDir, { recursive: true, mode: 0o700 });
+  // Formal benchmark lanes are one invocation, one model request sequence.
+  // Pi otherwise retries 429/overload errors internally by default, which
+  // hides route reliability and makes `--invoke-retries 0` incomplete.
+  writeFileSync(resolve(home, "settings.json"), JSON.stringify({
+    retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
+  }, null, 2) + "\n", { mode: 0o600 });
+  let modelsPath: string | undefined;
+  if (opts.gateway) {
+    modelsPath = resolve(home, "models.json");
+    writeFileSync(modelsPath, JSON.stringify({
+      providers: {
+        openrouter: {
+          name: "AX-eval OpenRouter enforcement gateway",
+          baseUrl: opts.gateway.baseUrl,
+          api: "openai-completions",
+          apiKey: "ax-eval-local-gateway",
+          models: [{
+            id: opts.gateway.policy.canonical_model,
+            name: opts.gateway.policy.canonical_model,
+            reasoning: true,
+            input: ["text"],
+            contextWindow: 1_000_000,
+            maxTokens: 131_072,
+          }],
+        },
+      },
+    }, null, 2) + "\n", { mode: 0o600 });
+  }
+  return { home, workDir, tempDir, modelsPath };
+}
+
 function productSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "target";
 }
@@ -67,6 +122,59 @@ function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string):
     `process.stdout.write(JSON.stringify({ Authorization: "Bearer " + token }));\n`;
   writeFileSync(scriptPath, script, { mode: 0o700 });
   try { chmodSync(scriptPath, 0o700); } catch { /* best effort */ }
+}
+
+function writeApiRequestTool(opts: {
+  toolPath: string;
+  pack: TargetPack;
+  traceJournalPath: string;
+}): void {
+  const auth = opts.pack.auth;
+  if (!auth?.env || !opts.pack.base_url) {
+    throw new Error("isolated OpenCode API execution requires pack auth.env and base_url");
+  }
+  const primaryHeader = auth.header ?? "Authorization";
+  const primaryValue = auth.type === "bearer" || auth.type === "oauth" ? `"Bearer " + token` : "token";
+  const source = `import { appendFileSync } from "node:fs";\n` +
+    `import { tool } from "@opencode-ai/plugin";\n` +
+    `const fail = (message) => { throw new Error(\`api_request: \${message}\`); };\n` +
+    `export default tool({ description: "Make one authenticated request to the pack API origin. Paths must start with /; credentials and the origin are applied internally.", args: { method: tool.schema.string(), path: tool.schema.string(), body: tool.schema.string().optional() }, async execute(args) {\n` +
+    `if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i.test(args.method)) fail("unsupported method");\n` +
+    `if (!args.path.startsWith("/") || args.path.startsWith("//")) fail("path must be origin-relative");\n` +
+    `const token = process.env[${JSON.stringify(auth.env)}]?.trim(); if (!token) fail("missing declared API credential");\n` +
+    `const base = new URL(${JSON.stringify(opts.pack.base_url)}.replace(/\\$\\{([A-Z0-9_]+)\\}/g, (_match, name) => { const value = process.env[name]?.trim(); if (!value) fail(\`missing endpoint variable \${name}\`); return value; }));\n` +
+    `if (base.protocol !== "https:" || base.username || base.password) fail("pack base URL must be HTTPS");\n` +
+    `const target = new URL(args.path, base); if (target.origin !== base.origin || target.username || target.password) fail("request must stay on pack origin");\n` +
+    `const headers = { ${JSON.stringify(primaryHeader)}: ${primaryValue}, ${auth.extra_header ? `${JSON.stringify(auth.extra_header)}: token, ` : ""}"accept": "application/json" }; if (args.body !== undefined) headers["content-type"] = "application/json";\n` +
+    `const response = await fetch(target, { method: args.method.toUpperCase(), headers, body: args.body, redirect: "error" }); const text = await response.text(); appendFileSync(${JSON.stringify(opts.traceJournalPath)}, JSON.stringify({ taskId: "discovery", action: "api_request", method: args.method.toUpperCase(), path: args.path, status: response.status, note: \`HTTP \${response.status}\` }) + "\\n", { mode: 0o600 }); return \`HTTP \${response.status}\\n\${text}\`; } });\n`;
+  writeFileSync(opts.toolPath, source, { mode: 0o600 });
+  try { chmodSync(opts.toolPath, 0o600); } catch { /* best effort */ }
+}
+
+/**
+ * OpenCode's built-in write action currently interprets a content string that
+ * starts with `{` as an action object. Bootstrap records are necessarily JSON
+ * objects, so provide a narrowly-scoped completion action instead. It has no
+ * caller-controlled path and can only produce this cell's two artifacts.
+ */
+function writeApiBootstrapOutputTool(opts: {
+  toolPath: string;
+  resultsPath: string;
+  tracePath: string;
+  traceJournalPath: string;
+}): void {
+  const source = `import { readFileSync, writeFileSync } from "node:fs";\n` +
+    `import { tool } from "@opencode-ai/plugin";\n` +
+    `const lines = (value) => value.split("\\n").map((item) => item.trim()).filter(Boolean);\n` +
+    `export default tool({ description: "Complete this taskless API bootstrap. This writes the fixed result and trace artifacts; it cannot write any other path.", args: { profile: tool.schema.string(), ns: tool.schema.string(), base_url_found: tool.schema.string(), searches: tool.schema.string(), urls_visited: tool.schema.string(), endpoint_used: tool.schema.string(), auth_scheme_found: tool.schema.string(), notes: tool.schema.string() }, async execute(args) {\n` +
+    `const trace = readFileSync(${JSON.stringify(opts.traceJournalPath)}, "utf8").split("\\n").filter(Boolean).map((line, index) => ({ step: index + 1, ...JSON.parse(line) }));\n` +
+    `if (!trace.length) throw new Error("no observed API requests were recorded");\n` +
+    `const result = { profile: args.profile, ns: args.ns, surface: "api", discovery: { base_url_found: args.base_url_found, searches: lines(args.searches), urls_visited: lines(args.urls_visited), endpoint_used: args.endpoint_used, auth_scheme_found: args.auth_scheme_found, notes: args.notes }, results: {} };\n` +
+    `writeFileSync(${JSON.stringify(opts.resultsPath)}, JSON.stringify(result, null, 2) + "\\n", { mode: 0o600 });\n` +
+    `writeFileSync(${JSON.stringify(opts.tracePath)}, JSON.stringify(trace, null, 2) + "\\n", { mode: 0o600 });\n` +
+    `return "Bootstrap artifacts written."; } });\n`;
+  writeFileSync(opts.toolPath, source, { mode: 0o600 });
+  try { chmodSync(opts.toolPath, 0o600); } catch { /* best effort */ }
 }
 
 async function exchangeRefreshToken(
@@ -272,11 +380,13 @@ function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: s
 function writeOpenCodeHome(opts: {
   paths: InvokePaths;
   surface: SurfaceId;
+  pack: TargetPack;
   isolateWorkspace?: boolean;
   mcp?: {
     serverName: string;
     entry: Record<string, unknown>;
   };
+  gateway?: { baseUrl: string; policy: OpenRouterRoutePolicy };
 }): {
   home: string;
   configDir: string;
@@ -285,6 +395,8 @@ function writeOpenCodeHome(opts: {
   dataHome: string;
   cacheHome: string;
   stateHome: string;
+  apiRequestTool?: string;
+  apiBootstrapOutputTool?: string;
   workRoot?: string;
   workDir?: string;
 } {
@@ -303,16 +415,78 @@ function writeOpenCodeHome(opts: {
   for (const path of [home, configDir, dataHome, cacheHome, stateHome]) {
     mkdirSync(path, { recursive: true, mode: 0o700 });
   }
+  // A fresh OpenCode config otherwise downloads this bundled plugin runtime
+  // before the first model request. Copy only executable package files from
+  // the local shared install, never its configuration, sessions, or keys.
+  const sharedConfigDir = resolve(homedir(), ".config", "opencode");
+  const sharedRuntime = resolve(sharedConfigDir, "node_modules");
+  if (existsSync(sharedRuntime)
+    && existsSync(resolve(sharedConfigDir, "package.json"))
+    && existsSync(resolve(sharedConfigDir, "package-lock.json"))) {
+    // The runtime is an immutable dependency tree for this invocation. A
+    // symlink avoids turning provisioning itself into a multi-minute copy;
+    // only the link lives in the disposable per-cell HOME.
+    symlinkSync(sharedRuntime, resolve(configDir, "node_modules"));
+    for (const name of ["package.json", "package-lock.json"]) {
+      copyFileSync(resolve(sharedConfigDir, name), resolve(configDir, name));
+    }
+  }
   // OpenCode stores full messages and tool output in SQLite below this root.
   // Keep the short-lived session private even on shared hosts, before the
   // containment-checked cleanup in invoke.ts removes it.
   try { chmodSync(home, 0o700); } catch { /* best effort on non-POSIX hosts */ }
+  const apiRequestTool = opts.surface === "api" ? "api_request" : undefined;
+  const apiBootstrapOutputTool = opts.surface === "api" && tasksForSurface(opts.pack, "api").length === 0
+    ? "complete_api_bootstrap"
+    : undefined;
+  const apiRequestToolPath = opts.surface === "api"
+    ? resolve(configDir, "tools", `${apiRequestTool}.js`)
+    : undefined;
+  if (apiRequestToolPath) {
+    mkdirSync(dirname(apiRequestToolPath), { recursive: true });
+    writeApiRequestTool({
+      toolPath: apiRequestToolPath,
+      pack: opts.pack,
+      traceJournalPath: resolve(dirname(opts.paths.tracePath), ".api-request-journal.jsonl"),
+    });
+  }
+  if (apiBootstrapOutputTool) {
+    const toolPath = resolve(configDir, "tools", `${apiBootstrapOutputTool}.js`);
+    mkdirSync(dirname(toolPath), { recursive: true });
+    writeApiBootstrapOutputTool({
+      toolPath,
+      resultsPath: opts.paths.resultsPath,
+      tracePath: opts.paths.tracePath,
+      traceJournalPath: resolve(dirname(opts.paths.tracePath), ".api-request-journal.jsonl"),
+    });
+  }
   const configPath = resolve(configDir, "opencode.json");
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
+  // API evaluations must not cross onto SQL-wire tooling. A dedicated request
+  // helper keeps the credential and origin policy outside model-controlled
+  // shell expansion; structured result/trace files use the edit tool.
   writeFileSync(configPath, `${JSON.stringify({
+    ...(opts.gateway ? {
+      "$schema": "https://opencode.ai/config.json",
+      provider: {
+        openrouter: {
+          options: {
+            baseURL: opts.gateway.baseUrl,
+            apiKey: "{env:OPENROUTER_API_KEY}",
+          },
+          models: { [opts.gateway.policy.canonical_model]: {} },
+        },
+      },
+    } : {}),
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
-    permission: { task: "deny" },
+    permission: {
+      task: "deny",
+      external_directory: "deny",
+      bash: opts.surface === "api" ? "deny" : "allow",
+      ...(apiRequestTool ? { [apiRequestTool]: "allow" } : {}),
+      ...(apiBootstrapOutputTool ? { [apiBootstrapOutputTool]: "allow" } : {}),
+    },
     share: "disabled",
     autoshare: false,
   }, null, 2)}\n`, { mode: 0o600 });
@@ -320,16 +494,52 @@ function writeOpenCodeHome(opts: {
   let workRoot: string | undefined;
   let workDir: string | undefined;
   if (opts.isolateWorkspace) {
-    workRoot = mkdtempSync(resolve(tmpdir(), "ax-eval-opencode-"));
-    workDir = resolve(workRoot, "workspace");
-    try {
-      mkdirSync(workDir, { recursive: true });
-    } catch (error) {
-      rmSync(workRoot, { recursive: true, force: true });
-      throw error;
-    }
+    // Results and trace are absolute files in this cell-owned artifact
+    // directory. Use it as the isolated cwd so OpenCode can write its output
+    // contract without granting access to arbitrary external directories.
+    workRoot = dirname(opts.paths.resultsPath);
+    workDir = workRoot;
   }
-  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir };
+  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestTool, apiBootstrapOutputTool };
+}
+
+/**
+ * OpenCode keeps its provider/model catalog in XDG cache. Isolated cell homes
+ * deliberately start empty, which is correct for session data but means a
+ * newly pinned OpenRouter slug otherwise fails before the first model request
+ * with "model not found". Refresh only the catalog here; inference is still
+ * performed by the later invocation. The child receives only the credentials
+ * declared for this provider and no output from the refresh is persisted.
+ */
+function refreshOpenCodeModelCatalog(opts: {
+  command?: string;
+  model?: string;
+  cwd: string;
+  env: Readonly<Record<string, string>>;
+  source: Readonly<Record<string, string | undefined>>;
+  allowDownloads?: boolean;
+}): "ok" | "failed" | undefined {
+  if (!opts.model || !isOpenCodeModelRoute(opts.model) || opts.allowDownloads === false) return undefined;
+  const provider = openCodeProviderId(opts.model);
+  const refreshEnv: Record<string, string> = {
+    ...opts.env,
+    PATH: opts.env.PATH ?? process.env.PATH ?? "",
+    PWD: opts.cwd,
+    OLDPWD: opts.cwd,
+    USER: opts.env.USER ?? process.env.USER ?? "",
+    LOGNAME: opts.env.LOGNAME ?? process.env.LOGNAME ?? "",
+  };
+  for (const name of openCodeProviderCredentialNames(opts.model)) {
+    const value = opts.source[name];
+    if (value !== undefined) refreshEnv[name] = value;
+  }
+  const result = spawnSync(opts.command ?? "opencode", ["models", provider, "--refresh"], {
+    cwd: opts.cwd,
+    env: refreshEnv,
+    stdio: "ignore",
+    timeout: 30_000,
+  });
+  return result.error || result.status !== 0 ? "failed" : "ok";
 }
 
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
@@ -364,6 +574,12 @@ export async function provisionHarnessForSurface(opts: {
   env?: Readonly<Record<string, string | undefined>>;
   allowDownloads?: boolean;
   allowAmbientHarnessAuth?: boolean;
+  /** Explicit model route used to prewarm an isolated OpenCode catalog. */
+  model?: string;
+  /** Controller-owned local OpenRouter gateway binding. */
+  openrouterGateway?: { baseUrl: string; policy: OpenRouterRoutePolicy };
+  /** Detected executable path; avoids resolving a different global binary. */
+  command?: string;
   /** Legacy exec-plan uses a disposable cwd so OpenCode/Bun cannot autoload
    * the repository's .env. Arena cells provide their own OS sandbox. */
   isolateWorkspace?: boolean;
@@ -400,23 +616,35 @@ export async function provisionHarnessForSurface(opts: {
       const opencode = writeOpenCodeHome({
         paths: opts.paths,
         surface: opts.surface,
+        pack: opts.pack,
         isolateWorkspace: opts.isolateWorkspace,
+        gateway: opts.openrouterGateway,
+      });
+      const opencodeEnv: Record<string, string> = {
+        HOME: opencode.home,
+        OPENCODE_CONFIG_DIR: opencode.configDir,
+        XDG_CONFIG_HOME: opencode.xdgConfigHome,
+        XDG_DATA_HOME: opencode.dataHome,
+        XDG_CACHE_HOME: opencode.cacheHome,
+        XDG_STATE_HOME: opencode.stateHome,
+        OPENCODE_ENABLE_EXA: "1",
+        OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+        OPENCODE_DISABLE_CLAUDE_CODE: "1",
+        OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
+        OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+        OPENCODE_DISABLE_AUTOUPDATE: "1",
+        ...(opts.openrouterGateway ? { OPENROUTER_API_KEY: "ax-eval-local-gateway" } : {}),
+      };
+      const catalogRefresh = refreshOpenCodeModelCatalog({
+        command: opts.command,
+        model: opts.model,
+        cwd: opencode.workDir ?? opts.cwd,
+        env: opencodeEnv,
+        source,
+        allowDownloads: opts.openrouterGateway ? false : opts.allowDownloads,
       });
       return {
-        env: {
-          HOME: opencode.home,
-          OPENCODE_CONFIG_DIR: opencode.configDir,
-          XDG_CONFIG_HOME: opencode.xdgConfigHome,
-          XDG_DATA_HOME: opencode.dataHome,
-          XDG_CACHE_HOME: opencode.cacheHome,
-          XDG_STATE_HOME: opencode.stateHome,
-          OPENCODE_ENABLE_EXA: "1",
-          OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-          OPENCODE_DISABLE_CLAUDE_CODE: "1",
-          OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
-          OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
-          OPENCODE_DISABLE_AUTOUPDATE: "1",
-        },
+        env: opencodeEnv,
         meta: {
           opencode_home: opencode.home,
           opencode_config_dir: opencode.configDir,
@@ -427,11 +655,43 @@ export async function provisionHarnessForSurface(opts: {
           opencode_state_home: opencode.stateHome,
           ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
           ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
+          ...(opencode.apiRequestTool ? { opencode_api_request_tool: opencode.apiRequestTool } : {}),
+          ...(opencode.apiBootstrapOutputTool ? { opencode_api_bootstrap_output_tool: opencode.apiBootstrapOutputTool } : {}),
+          ...(catalogRefresh ? { opencode_model_catalog_refresh: catalogRefresh } : {}),
+          ...(opts.openrouterGateway ? {
+            openrouter_gateway_url: opts.openrouterGateway.baseUrl,
+            openrouter_model: opts.openrouterGateway.policy.canonical_model,
+            openrouter_provider: opts.openrouterGateway.policy.provider,
+          } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };
     }
     if (opts.harness !== "codex") {
+      if (opts.harness === "pi") {
+        const pi = writePiHome({ paths: opts.paths, cwd: opts.cwd, gateway: opts.openrouterGateway });
+        return {
+          env: {
+            PI_CODING_AGENT_DIR: pi.home,
+            TMPDIR: pi.tempDir,
+            TMP: pi.tempDir,
+            TEMP: pi.tempDir,
+            ...(opts.openrouterGateway ? { OPENROUTER_API_KEY: "ax-eval-local-gateway" } : {}),
+          },
+          meta: {
+            pi_home: pi.home,
+            pi_temp_dir: pi.tempDir,
+            pi_work_dir: pi.workDir,
+            ...(pi.modelsPath ? { pi_models: pi.modelsPath } : {}),
+            ...(opts.openrouterGateway ? {
+              openrouter_gateway_url: opts.openrouterGateway.baseUrl,
+              openrouter_model: opts.openrouterGateway.policy.canonical_model,
+              openrouter_provider: opts.openrouterGateway.policy.provider,
+            } : {}),
+            mcp_provisioning: "disabled_for_non_mcp_surface",
+          },
+        };
+      }
       return { env: {} };
     }
     const codex = writeCodexNoMcpHome({
@@ -575,26 +835,38 @@ export async function provisionHarnessForSurface(opts: {
     const opencode = writeOpenCodeHome({
       paths: opts.paths,
       surface: opts.surface,
+      pack: opts.pack,
       isolateWorkspace: opts.isolateWorkspace,
       mcp: { serverName, entry },
+      gateway: opts.openrouterGateway,
+    });
+    const opencodeEnv: Record<string, string> = {
+      HOME: opencode.home,
+      OPENCODE_CONFIG_DIR: opencode.configDir,
+      XDG_CONFIG_HOME: opencode.xdgConfigHome,
+      XDG_DATA_HOME: opencode.dataHome,
+      XDG_CACHE_HOME: opencode.cacheHome,
+      XDG_STATE_HOME: opencode.stateHome,
+      OPENCODE_ENABLE_EXA: "1",
+      OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+      OPENCODE_DISABLE_CLAUDE_CODE: "1",
+      OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
+      OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+      OPENCODE_DISABLE_AUTOUPDATE: "1",
+      ...(opts.openrouterGateway ? { OPENROUTER_API_KEY: "ax-eval-local-gateway" } : {}),
+      ...stdioTokenEnv,
+      ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
+    };
+    const catalogRefresh = refreshOpenCodeModelCatalog({
+      command: opts.command,
+      model: opts.model,
+      cwd: opencode.workDir ?? opts.cwd,
+      env: opencodeEnv,
+      source,
+      allowDownloads: opts.openrouterGateway ? false : opts.allowDownloads,
     });
     return {
-      env: {
-        HOME: opencode.home,
-        OPENCODE_CONFIG_DIR: opencode.configDir,
-        XDG_CONFIG_HOME: opencode.xdgConfigHome,
-        XDG_DATA_HOME: opencode.dataHome,
-        XDG_CACHE_HOME: opencode.cacheHome,
-        XDG_STATE_HOME: opencode.stateHome,
-        OPENCODE_ENABLE_EXA: "1",
-        OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-        OPENCODE_DISABLE_CLAUDE_CODE: "1",
-        OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
-        OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
-        OPENCODE_DISABLE_AUTOUPDATE: "1",
-        ...stdioTokenEnv,
-        ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
-      },
+      env: opencodeEnv,
       meta: {
         mcp_provisioning: authMode,
         mcp_server: serverName,
@@ -607,6 +879,12 @@ export async function provisionHarnessForSurface(opts: {
         opencode_state_home: opencode.stateHome,
         ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
         ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
+        ...(catalogRefresh ? { opencode_model_catalog_refresh: catalogRefresh } : {}),
+        ...(opts.openrouterGateway ? {
+          openrouter_gateway_url: opts.openrouterGateway.baseUrl,
+          openrouter_model: opts.openrouterGateway.policy.canonical_model,
+          openrouter_provider: opts.openrouterGateway.policy.provider,
+        } : {}),
       },
     };
   }

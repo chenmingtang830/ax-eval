@@ -74,7 +74,21 @@ export * from "./controller/batch.js";
 export * from "./controller/worker.js";
 export * from "./controller/workflow.js";
 export * from "./controller/reporting.js";
+export * from "./publication/ax-score.js";
 export * from "./controller/sandbox.js";
+export {
+  LOCAL_DATABASE_CALIBRATION_SCHEMA,
+  LOCAL_DATABASE_CALIBRATION_MODELS,
+  localDatabaseCalibrationCellKeys,
+  buildLocalDatabaseCalibrationManifest,
+  exportLocalDatabaseCalibration,
+  runLocalDatabaseCalibration,
+} from "./local-database-calibration.js";
+export type {
+  LocalDatabaseCalibrationCell,
+  LocalDatabaseCalibrationManifest,
+  LocalDatabaseCalibrationOptions,
+} from "./local-database-calibration.js";
 export {
   AXARENA_DATABASE_BENCHMARK_ID,
   AXARENA_DATABASE_DISPLAY_NAME,
@@ -148,6 +162,14 @@ export {
 } from "./authoring/compose-pack.js";
 export * from "./authoring/database-task-fit.js";
 export * from "./authoring/database-policy.js";
+export * from "./authoring/database-v2-witness.js";
+export * from "./authoring/database-v2-runner.js";
+export * from "./authoring/discriminative-suite.js";
+export * from "./runtime/v21-execution.js";
+export * from "./runtime/v21-routes.js";
+export * from "./runtime/v21-controller.js";
+export * from "./runtime/v21-calibration.js";
+export * from "./publication/v21-ledger.js";
 export * from "./authoring/extract-advisory.js";
 export * from "./authoring/extract-audit.js";
 export * from "./authoring/methodology-policy.js";

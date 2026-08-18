@@ -437,6 +437,7 @@ export function observedToDiscovery(run: ObservedRun, ns?: string, surface: Surf
     searches: run.searches,
     urls_visited: run.urlsFetched,
     endpoint_used: endpoint,
+    ...(surface === "cli" ? { commands_used: [...run.cliCommands] } : {}),
     auth_scheme_found: run.sawBearer ? "Authorization: Bearer <token>" : "",
     inspected_local_source: inspectedLocal,
     notes: "objective: reconstructed from harness transcript (no tool results captured)",

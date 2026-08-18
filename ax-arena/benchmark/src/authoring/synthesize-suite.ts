@@ -12,7 +12,8 @@
  * — they reason over already-extracted, cited text rather than researching new
  * facts. Every claim still traces back to specific capability inventory entries.
  */
-import { stringify as yamlStringify } from "yaml";
+import { existsSync, readFileSync } from "node:fs";
+import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
@@ -83,6 +84,20 @@ const SynthesizedTaskSchema = z.object({
   oracle_hint: z.string().min(1),
   allowed_surfaces: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "cli"]),
   na_examples: z.array(z.string()).default([]),
+  execution_family: z.enum(["access-auth-discovery", "schema-integrity", "query-search", "lifecycle-recovery"]).optional(),
+  challenge_tags: z.array(z.enum([
+    "multi-step-state",
+    "constraint-preservation",
+    "negative-verification",
+    "recoverable-fault",
+    "surface-ambiguity",
+    "recovery",
+  ])).optional(),
+  discovery_reset: z.enum(["cell", "family", "task"]).optional(),
+  controller_fixture_ref: z.string().optional(),
+  supported_vendors: z.array(z.string().min(1)).min(1).optional(),
+  task_fit_vendors: z.array(z.string().min(1)).optional(),
+  anchor: z.boolean().optional(),
   rationale: z.string(),
   coverage: z.array(CoverageSchema),
 });
@@ -111,7 +126,13 @@ function categoryPrefix(category: string): string {
   return CATEGORY_PREFIXES[category] ?? category.replace(/[^a-z]/gi, "").slice(0, 2).toLowerCase();
 }
 
-function buildTaskDraftPrompt(category: string, cluster: Cluster, matched: Array<{ vendor: string; title: string; description: string; doc_url: string }>, index: number): string {
+function buildTaskDraftPrompt(
+  category: string,
+  cluster: Cluster,
+  matched: Array<{ vendor: string; title: string; description: string; doc_url: string }>,
+  index: number,
+  discriminative = false,
+): string {
   const evidence = matched.map((m) => `  - [${m.vendor}] ${m.title}: ${m.description} [${m.doc_url}]`).join("\n");
   const prefix = categoryPrefix(category);
   return [
@@ -139,9 +160,12 @@ function buildTaskDraftPrompt(category: string, cluster: Cluster, matched: Array
     `  vendors only expose this via a subset`,
     `- na_examples: example phrasing for when a vendor structurally lacks this`,
     ``,
+    ...(discriminative ? [
+      `V2.1 discriminative profile requirements: choose exactly one execution_family; include at least two challenge_tags from multi-step-state, constraint-preservation, negative-verification, recoverable-fault, surface-ambiguity, recovery; set discovery_reset to "family"; include a controller_fixture_ref naming setup/reset metadata without putting hidden details in intent. Do not put exact CLI commands, data-plane mappings, or verifier contracts in intent.`,
+    ] : []),
     `Return ONLY this JSON object, no commentary:`,
     `{"id": "...", "title": "...", "difficulty": "${cluster.difficulty}", "skill": "...", "intent": "...",`,
-    ` "oracle_hint": "...", "allowed_surfaces": ["api","cli"], "na_examples": ["..."]}`,
+    ` "oracle_hint": "...", "allowed_surfaces": ["api","cli"], "na_examples": ["..."], "execution_family": "access-auth-discovery", "challenge_tags": ["multi-step-state","constraint-preservation"], "discovery_reset": "family", "controller_fixture_ref": "database/<skill>"}`,
   ].join("\n");
 }
 
@@ -152,9 +176,67 @@ interface DeterministicTaskTemplate {
   oracle_hint: string;
   allowed_surfaces?: Array<"api" | "sdk" | "cli">;
   na_examples?: string[];
+  execution_family?: "access-auth-discovery" | "schema-integrity" | "query-search" | "lifecycle-recovery";
+  challenge_tags?: Array<"multi-step-state" | "constraint-preservation" | "negative-verification" | "recoverable-fault" | "surface-ambiguity" | "recovery">;
+  discovery_reset?: "cell" | "family" | "task";
+  controller_fixture_ref?: string;
 }
 
 const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
+  "cli-session-discovery": {
+    skill: "cli-session-discovery",
+    title: "Discover and verify an authenticated CLI session",
+    intent:
+      "From a fresh family session, discover the vendor's documented command-line entrypoint and authentication path. Using the provisioned sandbox credentials, create a task-scoped relation named `axarena_session_probe_{ns}` with one marker `session_{ns}` and the authenticated principal observed by the CLI session, then start a second fresh CLI process and read the marker back. Report the discovered surface, auth method, relation name, and marker; never print credentials or clean up the relation.",
+    oracle_hint:
+      "Read back `axarena_session_probe_{ns}` through an independent fresh SQL connection and confirm exactly one row has marker `session_{ns}` and a non-empty principal. The agent's claimed CLI discovery text is not sufficient without this world-state read-back.",
+    na_examples: ["This vendor does not expose a documented authenticated CLI/SQL data-plane path for the benchmark sandbox."],
+  },
+  "cli-principal-continuity": {
+    skill: "cli-principal-continuity",
+    title: "Verify authenticated principal continuity across CLI sessions",
+    intent:
+      "From a fresh family session, discover the documented CLI SQL path and create `axarena_principal_probe_{ns}` with one marker `principal_{ns}` and the non-empty authenticated principal returned by the session. Start a second fresh CLI process, read the row back, and report the same principal without printing credentials or cleaning up.",
+    oracle_hint:
+      "Read back `axarena_principal_probe_{ns}` through an independent fresh SQL connection and confirm exactly one marker row has a non-empty principal. The two CLI sessions must report the same principal in the trace.",
+    na_examples: ["This vendor does not expose a documented authenticated CLI/SQL path for principal continuity."],
+  },
+  "negative-query-verification": {
+    skill: "negative-query-verification",
+    title: "Verify a Negative Query Without Losing Existing Records",
+    intent:
+      "From a fresh family session, discover the documented CLI SQL path and create `axarena_negative_query_probe_{ns}` with two marker rows. Run a query for a marker that does not exist, confirm the negative result, then report the relation and the preserved record count without cleaning up.",
+    oracle_hint:
+      "Read back the relation through an independent fresh SQL connection and confirm both original rows remain and the negative predicate returns zero rows.",
+    na_examples: ["This vendor does not expose a documented CLI SQL query path for negative verification."],
+  },
+  "constraint-preservation": {
+    skill: "constraint-preservation",
+    title: "Preserve a constraint under a rejected write",
+    intent:
+      "From a fresh family session, discover the documented CLI SQL path and create `axarena_constraint_probe_{ns}` with a primary key and a unique marker constraint. Insert exactly one marker `constraint_{ns}`, then deliberately attempt the same marker again using the vendor's documented conflict/rejection path. Leave the original row intact and report the relation and rejected-write outcome; do not disable or replace the constraint.",
+    oracle_hint:
+      "Read back the relation through an independent fresh SQL connection and confirm exactly one `constraint_{ns}` row exists, the primary/unique constraint is present in metadata, and the duplicate attempt did not create a second row.",
+    na_examples: ["This vendor does not expose a documented CLI SQL path for defining and enforcing the required constraint."],
+  },
+  "transactional-record-recovery": {
+    skill: "transactional-record-recovery",
+    title: "Recover a record after a rolled-back transaction",
+    intent:
+      "From a fresh family session, discover the documented CLI SQL path and create `axarena_txn_probe_{ns}`. Start a transaction that inserts `rollback_{ns}` and roll it back, then commit exactly one `committed_{ns}` row in a separate transaction. Report the observed rollback and commit behavior without cleaning up the relation.",
+    oracle_hint:
+      "Read back the relation through an independent fresh SQL connection and confirm zero `rollback_{ns}` rows and exactly one `committed_{ns}` row. The final committed state must prove the earlier mutation was actually rolled back.",
+    na_examples: ["This vendor does not expose a documented CLI SQL transaction path with rollback and commit semantics."],
+  },
+  "aggregate-query": {
+    skill: "aggregate-query",
+    title: "Aggregate a filtered record set",
+    intent:
+      "From a fresh family session, discover the documented CLI SQL path and create `axarena_aggregate_probe_{ns}` with three rows: two `active` rows and one `inactive` row. Run a filtered aggregate that counts only the active rows and report the relation and count without cleaning it up.",
+    oracle_hint:
+      "Read back the relation through an independent fresh SQL connection and confirm three total rows, exactly two active rows, and an aggregate count of two for the active predicate.",
+    na_examples: ["This vendor does not expose a documented CLI SQL aggregate/query path."],
+  },
   "define-data-container": {
     skill: "define-data-container",
     title: "Create a logical data container",
@@ -275,17 +357,61 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
 };
 
 function deterministicDatabaseTaskDraft(cluster: Cluster, index: number): SynthesizedTask | null {
-  const template = DATABASE_TASK_TEMPLATES[cluster.cluster_name];
-  if (!template) return null;
+  // Candidate-pool generation deliberately keeps research/near-miss concepts
+  // visible.  They still need a deterministic, goal-level draft so the
+  // calibration gate can reject them from evidence rather than silently
+  // dropping them during authoring.  The generic draft is not a verifier and
+  // cannot make a task admissible by itself.
+  const template = DATABASE_TASK_TEMPLATES[cluster.cluster_name] ?? {
+    skill: cluster.cluster_name,
+    title: cluster.title,
+    intent: `Using the vendor's documented CLI mechanism for ${cluster.title.toLowerCase()}, perform one deterministic, task-scoped operation on a resource named \`axarena_${cluster.cluster_name}_{ns}\` and leave the resulting state available for independent read-back. Do not use a management API or disclose implementation-specific commands.`,
+    oracle_hint: `Read back the task-scoped resource \`axarena_${cluster.cluster_name}_{ns}\` through the vendor's documented CLI/data-plane surface and verify the requested ${cluster.title.toLowerCase()} state is present, including any negative or preservation condition required by the task.`,
+    na_examples: [`This vendor does not expose ${cluster.title.toLowerCase()} on the admitted CLI surface.`],
+  } satisfies DeterministicTaskTemplate;
+  const family = ["cli-session-discovery", "cli-principal-continuity", "access-control", "api-key-authentication", "api-key-management", "multi-factor-authentication", "oauth-authentication", "user-authentication"].includes(cluster.cluster_name)
+    ? "access-auth-discovery" as const
+    : ["evolve-schema", "inspect-schema", "constraint-preservation", "data-integrity-and-transactions"].includes(cluster.cluster_name)
+      ? "schema-integrity" as const
+      : ["query-records", "vector-search", "full-text-search", "aggregate-query", "negative-query-verification", "query-pagination"].includes(cluster.cluster_name)
+        ? "query-search" as const
+        : "lifecycle-recovery" as const;
+  const challengeTags = family === "access-auth-discovery"
+    ? ["surface-ambiguity", "negative-verification"] as const
+    : family === "schema-integrity"
+      ? ["multi-step-state", "constraint-preservation", "negative-verification"] as const
+      : family === "query-search"
+        ? ["multi-step-state", "negative-verification"] as const
+        : ["recoverable-fault", "recovery", "constraint-preservation"] as const;
+  const anchorOrdinals: Record<string, number> = {
+    "cli-session-discovery": 17,
+    "cli-principal-continuity": 21,
+    "constraint-preservation": 18,
+    "transactional-record-recovery": 19,
+    "aggregate-query": 20,
+    "negative-query-verification": 22,
+    "evolve-schema": 2,
+    "query-records": 4,
+    "write-records": 6,
+  };
+  let ordinal = anchorOrdinals[cluster.cluster_name] ?? index + 1;
+  if (anchorOrdinals[cluster.cluster_name] === undefined) {
+    while (Object.values(anchorOrdinals).includes(ordinal)) ordinal += 1;
+  }
   return {
-    id: `${categoryPrefix("database")}-T${String(index + 1).padStart(2, "0")}-${cluster.cluster_name}`,
-    title: `T${String(index + 1).padStart(2, "0")}: ${template.title}`,
+    id: `${categoryPrefix("database")}-T${String(ordinal).padStart(2, "0")}-${cluster.cluster_name}`,
+    title: `T${String(ordinal).padStart(2, "0")}: ${template.title}`,
     difficulty: cluster.difficulty,
     skill: template.skill,
     intent: template.intent,
     oracle_hint: template.oracle_hint,
     allowed_surfaces: template.allowed_surfaces ?? ["api", "cli"],
     na_examples: template.na_examples ?? [],
+    execution_family: template.execution_family ?? family,
+    challenge_tags: template.challenge_tags?.length ? template.challenge_tags : [...challengeTags],
+    discovery_reset: template.discovery_reset ?? "family",
+    controller_fixture_ref: template.controller_fixture_ref ?? `database/${cluster.cluster_name}`,
+    supported_vendors: [...new Set(cluster.coverage.map((entry) => entry.vendor))],
     rationale: cluster.rationale,
     coverage: cluster.coverage,
   };
@@ -303,12 +429,22 @@ export interface SynthesizeSuiteOptions {
   deterministic?: boolean;
   /** Opt-in grounded LLM gap adjudication (expensive). Default off. */
   gapCheckAssist?: boolean;
+  /** V2.1 authoring profile; adds challenge metadata requirements to drafts. */
+  difficultyProfile?: "discriminative";
+  /** Historical suite path used to mark anchor identities in the selection ledger. */
+  anchorSuite?: string;
   targetTaskCount?: number;
 }
 
 const TASK_DRAFT_TIMEOUT_MS = 6 * 60 * 1000;
 const TASK_DRAFT_CONCURRENCY = 3;
 const DATABASE_CORE_TASK_ORDER = [
+  "cli-session-discovery",
+  "cli-principal-continuity",
+  "constraint-preservation",
+  "transactional-record-recovery",
+  "aggregate-query",
+  "negative-query-verification",
   "access-control",
   "backup-and-restore",
   "evolve-schema",
@@ -323,6 +459,12 @@ const DATABASE_CORE_TASK_ORDER = [
  * implemented across the benchmark. Backup, CDC, and integrity stay research
  * until artifact/provenance/conflict probes are vendor-ready. */
 const DATABASE_VERIFIER_READY_SKILLS = new Set([
+  "cli-session-discovery",
+  "cli-principal-continuity",
+  "constraint-preservation",
+  "transactional-record-recovery",
+  "aggregate-query",
+  "negative-query-verification",
   "access-control",
   "evolve-schema",
   "inspect-schema",
@@ -336,10 +478,15 @@ const DATABASE_VERIFIER_READY_SKILLS = new Set([
  *  prior used when no empirical trial calibration is available; the final
  *  authority remains the human pipeline-review gate. */
 export function inferDifficultyFromConcept(conceptName: string): Cluster["difficulty"] {
-  const l4 = new Set(["backup-and-restore", "change-data-capture", "data-integrity-and-transactions"]);
+  const l4 = new Set(["backup-and-restore", "change-data-capture", "data-integrity-and-transactions", "transactional-record-recovery"]);
   const l3 = new Set(["server-side-execution", "evolve-schema", "migration"]);
   // query/write are multi-step record workflows (not single-action L1).
   const l2 = new Set([
+    "cli-session-discovery",
+    "cli-principal-continuity",
+    "constraint-preservation",
+    "aggregate-query",
+    "negative-query-verification",
     "access-control",
     "vector-search",
     "full-text-search",
@@ -547,7 +694,15 @@ export function buildSelectionLedgerArtifact(
   universe: ConceptUniverse,
   coverageMatrix: CoverageMatrix,
   proposed: Cluster[],
+  options: { candidatePool?: boolean } = {},
 ): SelectionLedger {
+  // V2.1 is CLI-only and requires an independently witnessed, strict
+  // verifier for every admitted tuple.  The generic access-control concept
+  // is retained in the candidate ledger for research/coverage accounting,
+  // but is not eligible for the production candidate pool until the Turso
+  // CLI negative-path witness exists.  The CLI principal-continuity task is
+  // the calibrated access-family replacement.
+  const v21ResearchOnlyConcepts = new Set(["access-control"]);
   const proposedByConcept = new Map(proposed.map((cluster) => [cluster.cluster_name, cluster]));
   const entries = coverageMatrix.concepts.map((concept) => {
     const supported = concept.decisions.filter((decision) => decision.status === "supported");
@@ -575,7 +730,10 @@ export function buildSelectionLedgerArtifact(
     );
     const meetsBroadCoverage = supported.length >= minVendors;
     const meetsTaskFitCoverage = taskFitSupported.length >= minVendors;
-    if (!meetsBroadCoverage) {
+    if (options.candidatePool && v21ResearchOnlyConcepts.has(concept.concept_name)) {
+      tier = "research";
+      rejectionReason = "retained as research only: independent CLI access-control witness is not complete for all admitted vendors";
+    } else if (!meetsBroadCoverage) {
       rejectionReason = `coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}% (${supported.length}/${concept.decisions.length} vendors; need ≥${minVendors})`;
     } else if (!selectedByModel) {
       rejectionReason = "not proposed by clustering stage";
@@ -629,6 +787,7 @@ export function buildSelectionLedgerArtifact(
   if (selectedCount < methodology.target_task_count) {
     for (const entry of entries) {
       if (entry.selected) continue;
+      if (options.candidatePool && v21ResearchOnlyConcepts.has(entry.concept_name)) continue;
       if (!entry.verifier_ready || (entry.task_fit_vendors?.length ?? 0) < minVendors) continue;
       entry.selected = true;
       entry.tier = "core";
@@ -658,6 +817,29 @@ export function buildSelectionLedgerArtifact(
       l4Candidate.tier = "core";
       l4Candidate.rejection_reason = undefined;
       l4Candidate.rationale = `${l4Candidate.rationale} Promoted to satisfy minimum L4 coverage.`;
+    }
+  }
+
+  // V2.1 first produces a deliberately broad candidate pool.  Keep the
+  // lower-coverage and verifier-pending concepts in that pool with their
+  // rejection metadata intact; calibration/freeze is the gate that decides
+  // whether they can become admitted tasks.  The ordinary (non-V2.1) path
+  // retains the historical core-only selection semantics.
+  if (options.candidatePool) {
+    const ranked = [...entries].sort((a, b) =>
+      b.task_fit_coverage_pct - a.task_fit_coverage_pct
+      || b.coverage_pct - a.coverage_pct
+      || Number(b.verifier_ready) - Number(a.verifier_ready)
+      || a.concept_name.localeCompare(b.concept_name),
+    );
+    for (const entry of ranked) {
+      if (entries.filter((candidate) => candidate.selected).length >= methodology.target_task_count) break;
+      if (entry.selected) continue;
+      if (v21ResearchOnlyConcepts.has(entry.concept_name)) continue;
+      entry.selected = true;
+      if (entry.tier === "excluded") entry.tier = "research";
+      entry.rejection_reason = entry.rejection_reason
+        ?? "included in V2.1 candidate pool; pending calibration and verifier review";
     }
   }
 
@@ -707,6 +889,16 @@ export function buildSupportMatrixArtifact(
             status: "unsupported" as const,
             source_concept: conceptName,
             reason: decision.reason ?? "Vendor not covered for selected concept in support matrix.",
+          };
+        }
+        if (category === "database" && task.execution_family && !decision.task_fit) {
+          return {
+            vendor,
+            task_id: task.id,
+            surface,
+            status: "unsupported" as const,
+            source_concept: conceptName,
+            reason: "Concrete database task-fit evidence is absent for this concept; retained as research-only and excluded from the CLI denominator.",
           };
         }
         if (!task.allowed_surfaces.includes(surface)) {
@@ -989,7 +1181,7 @@ export async function draftTask(
     .filter((m): m is NonNullable<typeof m> => m !== undefined);
 
   const label = `draft-task/${cluster.cluster_name}`;
-  const raw = await invokeGenerator(buildTaskDraftPrompt(category, cluster, matched, index), {
+  const raw = await invokeGenerator(buildTaskDraftPrompt(category, cluster, matched, index, opts.difficultyProfile === "discriminative"), {
     fallbackHarness: (opts.harness as "claude-code" | "codex" | undefined) ?? "claude-code",
     model: opts.model,
     effort: opts.effort as "low" | "medium" | "high" | undefined,
@@ -1011,13 +1203,37 @@ export async function draftTask(
     oracle_hint: z.string().min(1),
     allowed_surfaces: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "cli"]),
     na_examples: z.array(z.string()).default([]),
+    execution_family: z.enum(["access-auth-discovery", "schema-integrity", "query-search", "lifecycle-recovery"]).optional(),
+    challenge_tags: z.array(z.enum([
+      "multi-step-state",
+      "constraint-preservation",
+      "negative-verification",
+      "recoverable-fault",
+      "surface-ambiguity",
+      "recovery",
+    ])).optional(),
+    discovery_reset: z.enum(["cell", "family", "task"]).optional(),
+    controller_fixture_ref: z.string().optional(),
+    supported_vendors: z.array(z.string().min(1)).min(1).optional(),
+    anchor: z.boolean().optional(),
   });
   const parsed = draftSchema.safeParse(JSON.parse(json));
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
     throw new Error(`draft-task for "${label}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`);
   }
-  return { ...parsed.data, rationale: cluster.rationale, coverage: cluster.coverage };
+  if (opts.difficultyProfile === "discriminative"
+    && (!parsed.data.execution_family || !parsed.data.challenge_tags?.length
+      || parsed.data.discovery_reset !== "family" || !parsed.data.controller_fixture_ref)) {
+    throw new Error(`draft-task for "${label}" did not satisfy the discriminative V2.1 metadata contract`);
+  }
+  return {
+    ...parsed.data,
+    supported_vendors: parsed.data.supported_vendors ?? [...new Set(cluster.coverage.map((entry) => entry.vendor))],
+    ...(opts.difficultyProfile === "discriminative" ? { anchor: false } : {}),
+    rationale: cluster.rationale,
+    coverage: cluster.coverage,
+  };
 }
 
 /** Full pipeline: cluster+select (Step A), then draft all selected tasks in parallel (Step B). */
@@ -1056,7 +1272,15 @@ export async function synthesizeSuite(
   });
   const coverageMatrix = buildCoverageMatrixArtifact(category, conceptUniverse, extracts, gapChecks);
   const proposed = proposeClustersFromUniverse(conceptUniverse, coverageMatrix);
-  const selectionLedger = buildSelectionLedgerArtifact(benchmark, category, methodology, conceptUniverse, coverageMatrix, proposed);
+  const selectionLedger = buildSelectionLedgerArtifact(
+    benchmark,
+    category,
+    methodology,
+    conceptUniverse,
+    coverageMatrix,
+    proposed,
+    { candidatePool: opts.difficultyProfile === "discriminative" },
+  );
   const selectedClusters: Cluster[] = selectionLedger.entries
     .filter((entry) => entry.selected)
     .slice(0, methodology.target_task_count)
@@ -1099,9 +1323,31 @@ export async function synthesizeSuite(
       .join("; ");
     throw new Error(`task drafting failed for ${taskFailures.length} cluster(s): ${details}`);
   }
-  const tasks = drafted
+  const draftedTasks = drafted
     .filter((result): result is PromiseFulfilledResult<SynthesizedTask> => result.status === "fulfilled")
     .map((result) => result.value);
+  const anchorIds = new Set([
+    "db-T02-evolve-schema",
+    "db-T04-query-records",
+    "db-T06-write-records",
+  ]);
+  if (opts.anchorSuite) {
+    if (!existsSync(opts.anchorSuite)) throw new Error("anchor suite does not exist: " + opts.anchorSuite);
+    const anchorSuite = yamlParse(readFileSync(opts.anchorSuite, "utf8"));
+    const available = new Set(
+      Array.isArray(anchorSuite?.tasks)
+        ? anchorSuite.tasks
+          .filter((task: unknown): task is { id: string } => Boolean(task && typeof task === "object" && typeof (task as { id?: unknown }).id === "string"))
+          .map((task: { id: string }) => task.id)
+        : [],
+    );
+    const missing = [...anchorIds].filter((id) => !available.has(id));
+    if (missing.length) throw new Error(`anchor suite is missing required V2.1 anchors: ${missing.join(", ")}`);
+  }
+  const tasks = draftedTasks.map((task) => ({
+    ...task,
+    anchor: anchorIds.has(task.id),
+  }));
   const supportMatrix = buildSupportMatrixArtifact(
     benchmark,
     category,
@@ -1110,10 +1356,27 @@ export async function synthesizeSuite(
     tasks,
     selectedClusters,
   );
+  // Keep broad cited coverage for the authoring candidate pool, but expose
+  // the stricter, surface-specific task-fit denominator as first-class task
+  // metadata. Calibration/freeze must use this field so a broad citation
+  // cannot accidentally admit a task whose concrete CLI contract is below
+  // the five-of-six gate.
+  const taskFitVendorsById = new Map(
+    tasks.map((task) => [
+      task.id,
+      [...new Set(supportMatrix.entries
+        .filter((entry) => entry.task_id === task.id && entry.surface === "cli" && entry.status === "supported")
+        .map((entry) => entry.vendor))],
+    ]),
+  );
+  const tasksWithTaskFit = tasks.map((task) => ({
+    ...task,
+    task_fit_vendors: taskFitVendorsById.get(task.id) ?? [],
+  }));
   const graderLedger = buildGraderLedgerArtifact(benchmark, tasks);
   const failureTaxonomy = buildFailureTaxonomyArtifact(benchmark);
   const traceReview = buildTraceReviewArtifact(benchmark);
-  return { tasks, methodology, conceptUniverse, coverageMatrix, selectionLedger, supportMatrix, graderLedger, failureTaxonomy, traceReview };
+  return { tasks: tasksWithTaskFit, methodology, conceptUniverse, coverageMatrix, selectionLedger, supportMatrix, graderLedger, failureTaxonomy, traceReview };
 }
 
 /** Render the frozen suite YAML (loadSuite()-compatible) from a synthesis result. */
@@ -1135,6 +1398,13 @@ export function renderSuiteYaml(name: string, version: number, category: string,
       oracle_hint: t.oracle_hint,
       allowed_surfaces: t.allowed_surfaces,
       na_examples: t.na_examples,
+      ...(t.execution_family ? { execution_family: t.execution_family } : {}),
+      challenge_tags: t.challenge_tags,
+      discovery_reset: t.discovery_reset,
+      ...(t.controller_fixture_ref ? { controller_fixture_ref: t.controller_fixture_ref } : {}),
+      supported_vendors: t.supported_vendors ?? [...new Set(t.coverage.map((entry) => entry.vendor))],
+      ...(t.task_fit_vendors ? { task_fit_vendors: t.task_fit_vendors } : {}),
+      ...(t.anchor !== undefined ? { anchor: t.anchor } : {}),
     })),
     scoring: {
       per_task: "pass | fail | na",

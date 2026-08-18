@@ -55,7 +55,11 @@ export async function runSqlQuery(
           await client.query(`SET ROLE "${role.replaceAll('"', '""')}"`);
         }
       } catch {
-        throw new Error("PostgreSQL verifier role setup failed");
+        // A role-switch error is an expected negative-verification outcome,
+        // not an infrastructure exception. Preserve only the structured SQL
+        // marker so the oracle remains auditable without exposing a DSN or
+        // accidentally accepting setup failure as the expected query denial.
+        return { code: "ROLE_SETUP_FAILED", message: "PostgreSQL verifier role setup failed" };
       }
       try {
         const result = await client.query(query);

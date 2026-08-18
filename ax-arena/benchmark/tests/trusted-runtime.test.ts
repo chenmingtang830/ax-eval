@@ -19,6 +19,7 @@ describe("trusted runtime lock and workflow", () => {
       harnesses: {
         codex: { version: "0.145.0", version_output: "codex-cli 0.145.0" },
         claude_code: { version: "2.1.217", version_output: "2.1.217 (Claude Code)" },
+        opencode: { version: "1.18.10", version_output: "1.18.10" },
       },
       bubblewrap: {
         archive_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
@@ -31,7 +32,7 @@ describe("trusted runtime lock and workflow", () => {
       },
     });
     expect(runtime.sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(runtime.lock.harnesses.package_lock_sha256).toBe("b3b39718c28214818682a352db6be6f8f216ea44e191d60c11ade74a853752ac");
+    expect(runtime.lock.harnesses.package_lock_sha256).toBe("0da5d631659f4e4b7693a79328405a8519800c4df9b7cfd35b3595f8424c01b6");
   });
 
   it("rejects mutable release aliases and malformed runtime pins", () => {

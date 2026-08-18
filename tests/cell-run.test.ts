@@ -1055,6 +1055,16 @@ describe("runCell", () => {
     expect(record.task_results).toHaveLength(1);
   });
 
+  it("does not mark an empty executor result as a completed profile run", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.verify = async () => [];
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record.status).toBe("failed");
+    expect(record.error).toEqual({ stage: "verify", message: "executor returned no task outcomes" });
+    expect(record.best_profile).toBeNull();
+  });
+
   it("rejects a stale cell hash before invoking", async () => {
     const { cell } = fixture();
     const invokeHarness = vi.fn();
@@ -1077,6 +1087,42 @@ describe("runCell", () => {
     expect(record).toMatchObject({ status: "blocked", blocked: "missing-credential" });
     expect(record.error?.message).toContain("EXAMPLE_TOKEN");
     expect(invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("allows local Codex login transfer only with the explicit ambient-auth option", async () => {
+    const { cell } = fixture();
+    const invokeHarness = vi.fn();
+    const record = await runCellWithRuntime(
+      { ...cell, harness: { ...cell.harness, id: "codex" }, required_credentials: ["OPENAI_API_KEY"] },
+      { credentials: {} },
+      { ...runtime([]), invokeHarness },
+    );
+    expect(record).toMatchObject({ status: "blocked", blocked: "missing-credential" });
+    const localRecord = await runCellWithRuntime(
+      { ...cell, harness: { ...cell.harness, id: "codex" }, required_credentials: ["OPENAI_API_KEY"] },
+      { credentials: {}, allowAmbientHarnessAuth: true },
+      { ...runtime([]), invokeHarness },
+    );
+    expect(localRecord.status).not.toBe("blocked");
+    expect(invokeHarness).toHaveBeenCalledOnce();
+  });
+
+  it("allows local Claude login transfer only with the explicit ambient-auth option", async () => {
+    const { cell } = fixture();
+    const invokeHarness = vi.fn();
+    const record = await runCellWithRuntime(
+      { ...cell, harness: { ...cell.harness, id: "claude-code" }, required_credentials: ["ANTHROPIC_API_KEY"] },
+      { credentials: {} },
+      { ...runtime([]), invokeHarness },
+    );
+    expect(record).toMatchObject({ status: "blocked", blocked: "missing-credential" });
+    const localRecord = await runCellWithRuntime(
+      { ...cell, harness: { ...cell.harness, id: "claude-code" }, required_credentials: ["ANTHROPIC_API_KEY"] },
+      { credentials: {}, allowAmbientHarnessAuth: true },
+      { ...runtime([]), invokeHarness },
+    );
+    expect(localRecord.status).not.toBe("blocked");
+    expect(invokeHarness).toHaveBeenCalledOnce();
   });
 
   it("redacts supplied credential values from lifecycle failures", async () => {

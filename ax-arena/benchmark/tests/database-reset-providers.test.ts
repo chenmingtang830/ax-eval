@@ -107,23 +107,22 @@ describe("arena database reset providers", () => {
     vi.unstubAllGlobals();
   });
 
-  it("leaves a namespaced role unconfirmed instead of cascading into unrelated owned objects", async () => {
+  it("cleans owned grants for a namespaced role before dropping it without a cascade", async () => {
     const pack = TargetPackSchema.parse({
       name: "neon",
       sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
       tasks: [],
     });
     pgMock.roles = [{ rolname: "axarena_acl_denied_ns_keep" }];
-    const statement = 'DROP ROLE IF EXISTS "axarena_acl_denied_ns_keep"';
-    pgMock.failStatements.add(statement);
+    const statement = 'DROP OWNED BY "axarena_acl_denied_ns_keep"; DROP ROLE IF EXISTS "axarena_acl_denied_ns_keep"';
     const ctx = context(pack, { DATABASE_URL: "postgres://redacted.invalid/db" });
     const plan = await postgresResetProvider.plan(ctx);
     const evidence = await postgresResetProvider.execute(plan, ctx);
 
-    expect(evidence.deleted).toEqual([]);
-    expect(evidence.errors).toEqual([expect.stringContaining("failed to delete")]);
+    expect(evidence.deleted).toEqual(["postgres:role:axarena_acl_denied_ns_keep"]);
+    expect(evidence.errors).toEqual([]);
     expect(pgMock.executed).toEqual([statement]);
-    expect(pgMock.executed.join(" ")).not.toContain("DROP OWNED");
+    expect(pgMock.executed.join(" ")).not.toContain("CASCADE");
   });
 
   it("plans and deletes only namespaced Postgres tables, routines, and roles", async () => {
@@ -152,7 +151,7 @@ describe("arena database reset providers", () => {
     expect(pgMock.executed).toEqual([
       'DROP TABLE IF EXISTS "public"."axarena_acl_ns-keep"',
       'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"(text)',
-      'DROP ROLE IF EXISTS "axarena_acl_denied_ns_keep"',
+      'DROP OWNED BY "axarena_acl_denied_ns_keep"; DROP ROLE IF EXISTS "axarena_acl_denied_ns_keep"',
     ]);
     expect(pgMock.executed.join(" ")).not.toContain("CASCADE");
   });

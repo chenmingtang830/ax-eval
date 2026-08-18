@@ -243,9 +243,11 @@ function failClosedExecution(command: RuntimeCommand, argv: readonly string[]): 
     if (command === "axarena-database-production-rerun" || command === "daeb-production-rerun") {
       const codexModel = one(values, "--codex-model");
       const claudeModel = one(values, "--claude-model");
+      const openCodeModel = one(values, "--opencode-model");
       if ((codexModel && codexModel !== "gpt-5.6-terra")
-        || (claudeModel && claudeModel !== "claude-sonnet-5")) {
-        throw new Error("production models are frozen to gpt-5.6-terra and claude-sonnet-5");
+        || (claudeModel && claudeModel !== "claude-sonnet-5")
+        || (openCodeModel && openCodeModel !== "openrouter/z-ai/glm-5.2")) {
+        throw new Error("production models are frozen to gpt-5.6-terra, claude-sonnet-5, or OpenCode openrouter/z-ai/glm-5.2");
       }
       const trials = one(values, "--trial-count");
       if (trials && trials !== "3") throw new Error("production requires exactly 3 clean trials");

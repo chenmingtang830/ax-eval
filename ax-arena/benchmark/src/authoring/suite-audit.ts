@@ -17,6 +17,7 @@ import {
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
 import {
+  loadPack,
   loadSuite,
 } from "ax-eval";
 import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
@@ -72,6 +73,146 @@ function listDatabaseSlugs(root: AxArenaDatabasePathInput): string[] {
     .filter((f) => f.endsWith(".discovered.yaml"))
     .map((f) => f.replace(/\.discovered\.yaml$/, ""))
     .sort();
+}
+
+/** v2 production is a self-contained candidate tree. Its packs and support
+ * matrix intentionally do not use the mutable v1 extract/pack root. Keep the
+ * v1 authoring audit strict while giving the v2 candidate an equivalent
+ * surface-drift check against its sibling production/packs directory. */
+function isV2ProductionSuite(suitePath: string): boolean {
+  return /[/\\]v2[/\\]production[/\\]suite\.yaml$/i.test(suitePath);
+}
+
+function isV21CandidateSuite(suitePath: string): boolean {
+  return /[/\\]v2-1[/\\]candidate-suite-v2-1\.yaml$/i.test(suitePath);
+}
+
+const V21_VENDOR_SLUGS = ["cockroachdb", "insforge", "neon", "nile", "turso", "supabase"] as const;
+
+// V2.1's authenticated CLI-session task is intentionally a cross-cutting
+// derived concept.  It reuses the vendor's strongest documented SQL/CLI
+// connection capability rather than pretending that every vendor calls the
+// capability "CLI session discovery".  The task-fit rule and the independent
+// five-vendor witness are the authoritative checks for this derived concept;
+// the normal one-capability/one-concept mapping audit must not flag those
+// source capabilities as stale mappings.
+const V21_DERIVED_CLI_SESSION_CAPABILITIES = new Set([
+  "sql-user-role-management",
+  "baseline-sql-table-and-row-operations",
+  "role-management",
+  "postgres-protocol-compatibility",
+  "sql-query-execution",
+]);
+const V21_DERIVED_CROSS_CUTTING_CONCEPTS = new Set([
+  "cli-session-discovery",
+  "cli-principal-continuity",
+  "constraint-preservation",
+  "transactional-record-recovery",
+  "aggregate-query",
+  "negative-query-verification",
+]);
+
+function auditV2ProductionPackSurfaces(
+  suitePath: string,
+  supportMatrix: SupportMatrix,
+): SuiteFinding[] {
+  const packsDir = resolve(dirname(suitePath), "packs");
+  if (!existsSync(packsDir)) return [];
+  return readdirSync(packsDir)
+    .filter((entry) => existsSync(resolve(packsDir, entry, "pack.yaml")))
+    .sort()
+    .flatMap((vendor) => {
+      const pack = loadSuitePack(resolve(packsDir, vendor, "pack.yaml"));
+      return pack.tasks.flatMap((task) => {
+        const expected = supportMatrix.entries
+          .filter((entry) => entry.vendor === vendor && entry.task_id === task.id && entry.status === "supported")
+          .map((entry) => entry.surface)
+          .sort();
+        const actual = [...task.allowed_surfaces].sort();
+        if (expected.join(",") === actual.join(",")) return [];
+        return [{
+          severity: "error" as const,
+          code: "support_matrix_pack_drift",
+          message: `${vendor}/${task.id} pack surfaces [${actual.join(",")}] differ from production support matrix [${expected.join(",")}]`,
+          auto_fixable: false,
+        }];
+      });
+    });
+}
+
+function auditV21PackSurfaces(
+  suitePath: string,
+  supportMatrix: SupportMatrix,
+): SuiteFinding[] {
+  const packsDir = resolve(dirname(suitePath), "packs");
+  if (!existsSync(packsDir)) {
+    return [{
+      severity: "error",
+      code: "v21_packs_missing",
+      message: "V2.1 candidate has no six-vendor packs directory; independent oracle/witness review is still pending",
+      auto_fixable: false,
+    }];
+  }
+  const vendors = readdirSync(packsDir)
+    .filter((entry) => existsSync(resolve(packsDir, entry, "pack.yaml")))
+    .sort();
+  const suiteTasks = loadSuite(suitePath).tasks;
+  const suiteTaskIds = suiteTasks.map((task) => task.id);
+  const suiteTasksById = new Map(suiteTasks.map((task) => [task.id, task]));
+  const findings: SuiteFinding[] = [];
+  for (const vendor of V21_VENDOR_SLUGS) {
+    if (!vendors.includes(vendor)) {
+      findings.push({
+        severity: "error",
+        code: "v21_pack_missing_vendor",
+        message: `V2.1 candidate is missing the ${vendor} pack`,
+        auto_fixable: false,
+      });
+    }
+  }
+  for (const vendor of vendors) {
+    const pack = loadSuitePack(resolve(packsDir, vendor, "pack.yaml"));
+    const packTaskIds = new Set(pack.tasks.map((task) => task.id));
+    for (const taskId of suiteTaskIds) {
+      if (packTaskIds.has(taskId)) continue;
+      const supportEntry = supportMatrix.entries.find((entry) =>
+        entry.vendor.toLowerCase() === vendor.toLowerCase() &&
+        entry.task_id === taskId &&
+        entry.surface === "cli"
+      );
+      const taskFitVendors = (suiteTasksById.get(taskId) as (typeof suiteTasks[number] & { task_fit_vendors?: string[] }) | undefined)?.task_fit_vendors;
+      const admissionEligible = taskFitVendors === undefined || taskFitVendors.length >= 5;
+      const supportedWithoutWitness = supportEntry?.status === "supported" && admissionEligible;
+      findings.push({
+        severity: "error",
+        code: supportedWithoutWitness ? "v21_pack_missing_witnessed_task" : "v21_pack_missing_task",
+        message: supportedWithoutWitness
+          ? `${vendor} V2.1 pack is missing supported candidate task ${taskId}; an independent oracle/witness is still required before this tuple can be admitted`
+          : `${vendor} V2.1 pack is missing candidate task ${taskId}; every structural N/A must be explicit`,
+        auto_fixable: false,
+      });
+    }
+    for (const task of pack.tasks) {
+      const expected = supportMatrix.entries
+        .filter((entry) => entry.vendor.toLowerCase() === vendor && entry.task_id === task.id && entry.surface === "cli" && entry.status === "supported" && !task.na && task.allowed_surfaces.includes("cli"))
+        .map((entry) => entry.surface)
+        .sort();
+      const actual = [...task.allowed_surfaces].sort();
+      if (expected.join(",") !== actual.join(",")) {
+        findings.push({
+          severity: "error",
+          code: "support_matrix_pack_drift",
+          message: `${vendor}/${task.id} pack surfaces [${actual.join(",")}] differ from V2.1 support matrix [${expected.join(",")}]`,
+          auto_fixable: false,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+function loadSuitePack(path: string): ReturnType<typeof loadPack> {
+  return loadPack(path);
 }
 
 /** Find inventory capabilities that should map to a concept but didn't. */
@@ -155,6 +296,15 @@ export function findMappingFalsePositives(
         candidate.capability_name === conceptCapabilityName
       );
       if (!capability) continue;
+
+      if (
+        V21_DERIVED_CROSS_CUTTING_CONCEPTS.has(concept.concept_name) &&
+        (concept.concept_name === "cli-session-discovery"
+          ? V21_DERIVED_CLI_SESSION_CAPABILITIES.has(capability.capability_name)
+          : true)
+      ) {
+        continue;
+      }
 
       const currentMatch = matchDeterministicDatabaseConcept(capability);
       const compatibilityIssue = databaseConceptCompatibilityIssue(capability, concept.concept_name);
@@ -324,6 +474,7 @@ export function auditSuite(
   const coverage = loadCoverageMatrix(root, suitePath);
   const supportMatrix = loadSupportMatrix(root, suitePath);
   const traceReview = loadTraceReview(root, suitePath);
+  const v2Production = isV2ProductionSuite(abs);
   const target = suite.methodology?.target_task_count ?? 10;
   const minPct = suite.methodology?.min_vendor_coverage_pct ?? 0.75;
 
@@ -398,17 +549,29 @@ export function auditSuite(
     }
   }
 
-  if (coverage) {
-    const slugs = listDatabaseSlugs(benchmarkPaths);
+  const v21Candidate = isV21CandidateSuite(abs);
+  if (coverage && !v2Production) {
+    const slugs = v21Candidate ? [...V21_VENDOR_SLUGS] : listDatabaseSlugs(benchmarkPaths);
+    const v21TaskFitEligibleIds = v21Candidate
+      ? new Set([...(supportMatrix?.entries ?? [])
+        .filter((entry) => entry.surface === "cli" && entry.status === "supported")
+        .reduce((counts, entry) => counts.set(entry.task_id, (counts.get(entry.task_id) ?? 0) + 1), new Map<string, number>())
+        .entries()]
+        .filter(([, count]) => count >= 5)
+        .map(([taskId]) => taskId))
+      : null;
+    const auditedConcepts = new Set(suite.tasks
+      .filter((task) => !v21Candidate || v21TaskFitEligibleIds?.has(task.id))
+      .map((task) => task.skill));
     findings.push(...findTaskFitAuditFindings(
       coverage,
-      new Set(suite.tasks.map((task) => task.skill)),
+      auditedConcepts,
       supportMatrix,
     ));
     findings.push(...findStaleTaskFitFindings(
       benchmarkPaths,
       coverage,
-      new Set(suite.tasks.map((task) => task.skill)),
+      auditedConcepts,
       slugs,
     ));
     findings.push(...findMappingFalsePositives(benchmarkPaths, coverage, slugs));
@@ -445,27 +608,35 @@ export function auditSuite(
     }
   }
   if (supportMatrix) {
-    const extracts = new Map(
-      listDatabaseSlugs(benchmarkPaths)
-        .map((slug) => [slug, loadOracleExtract(benchmarkPaths, slug, suite.name)] as const)
-        .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
-    );
-    for (const finding of auditCorePacks(benchmarkPaths, listDatabaseSlugs(benchmarkPaths), extracts, supportMatrix)) {
+    if (v2Production) {
+      findings.push(...auditV2ProductionPackSurfaces(abs, supportMatrix));
+    } else if (v21Candidate) {
+      findings.push(...auditV21PackSurfaces(abs, supportMatrix));
+    } else {
+      const extracts = new Map(
+        listDatabaseSlugs(benchmarkPaths)
+          .map((slug) => [slug, loadOracleExtract(benchmarkPaths, slug, suite.name)] as const)
+          .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
+      );
+      for (const finding of auditCorePacks(benchmarkPaths, listDatabaseSlugs(benchmarkPaths), extracts, supportMatrix)) {
+        findings.push({
+          severity: finding.severity,
+          code: finding.code,
+          message: finding.message,
+          auto_fixable: true,
+        });
+      }
+    }
+  }
+  if (!v2Production && !v21Candidate) {
+    for (const finding of auditVendorSelectionAgainstExtracts(benchmarkPaths)) {
       findings.push({
         severity: finding.severity,
         code: finding.code,
         message: finding.message,
-        auto_fixable: true,
+        auto_fixable: false,
       });
     }
-  }
-  for (const finding of auditVendorSelectionAgainstExtracts(benchmarkPaths)) {
-    findings.push({
-      severity: finding.severity,
-      code: finding.code,
-      message: finding.message,
-      auto_fixable: false,
-    });
   }
 
   return {

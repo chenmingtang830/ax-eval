@@ -165,6 +165,17 @@ describe("surface-parameterized executor prompt", () => {
     expect(p).not.toContain("Read .env");
   });
 
+  it("CLI database prompts expose the declared data-plane env name without exposing its value", () => {
+    const p = promptFor("cli", TargetPackSchema.parse({
+      ...base,
+      sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
+      surfaces: { cli: { bin: "demo", auth: { kind: "inherit" } } },
+    }));
+    expect(p).toContain("Use process.env.DATABASE_URL silently for the declared SQL data-plane connection");
+    expect(p).toContain("do not print its value");
+    expect(p).not.toContain("No credential env var is declared by this pack");
+  });
+
   it("does not inject legacy Asana credentials into generic no-auth packs", () => {
     const p = promptFor("api", apiOnly);
     expect(p).toContain("No credential env var is declared by this pack");

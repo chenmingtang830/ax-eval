@@ -8,7 +8,7 @@
   },
   "harnesses": {
     "package_lock_path": "ax-arena/benchmark/trusted-runtime/harness/package-lock.json",
-    "package_lock_sha256": "b3b39718c28214818682a352db6be6f8f216ea44e191d60c11ade74a853752ac",
+    "package_lock_sha256": "0da5d631659f4e4b7693a79328405a8519800c4df9b7cfd35b3595f8424c01b6",
     "codex": {
       "package": "@openai/codex",
       "version": "0.145.0",
@@ -20,6 +20,12 @@
       "version": "2.1.217",
       "version_output": "2.1.217 (Claude Code)",
       "executable_path": "/opt/ax-arena-tools/harness/node_modules/@anthropic-ai/claude-code-linux-x64/claude"
+    },
+    "opencode": {
+      "package": "opencode-ai",
+      "version": "1.18.10",
+      "version_output": "1.18.10",
+      "executable_path": "/opt/ax-arena-tools/harness/node_modules/opencode-ai/bin/opencode.exe"
     }
   },
   "bubblewrap": {
