@@ -1,0 +1,27 @@
+{
+  "schema": "ax.daeb-v2-3-native-contract-manifest/v1",
+  "suite": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/vendor-experience-suite.yaml",
+    "sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15"
+  },
+  "contracts": {
+    "gemini-3.7-flash.yaml": {
+      "source": "ax-arena/benchmark/axarena-database/v2-2/native-journey.yaml",
+      "source_sha256": "360344b7d4608853524c29f35ecfa0f2ee3da8513f9472737ee7b641c7fdf347",
+      "contract": "ax-arena/benchmark/axarena-database/v2-3/contracts/gemini-3.7-flash.yaml",
+      "contract_sha256": "758e15cc82912a7bbf4aea4aca46aa67e09964d1127148953d03ee419060118b"
+    },
+    "qwen-3.8-27b.yaml": {
+      "source": "ax-arena/benchmark/axarena-database/v2-2/contracts/qwen-3.8-27b.yaml",
+      "source_sha256": "a15250d6da56e375293eb43b35b28af7345b835ec9914cfac49ae906ce40efe9",
+      "contract": "ax-arena/benchmark/axarena-database/v2-3/contracts/qwen-3.8-27b.yaml",
+      "contract_sha256": "6f492a199b74a8d0cfd61875412fe334a823c292399b2c4c9181179fc214d4a7"
+    },
+    "kimi-k3.yaml": {
+      "source": "ax-arena/benchmark/axarena-database/v2-2/contracts/kimi-k3.yaml",
+      "source_sha256": "980a3f90a079f33ba61e84c8fe7d5dc7f69546c3d4491a63cf9e0fdafda917bc",
+      "contract": "ax-arena/benchmark/axarena-database/v2-3/contracts/kimi-k3.yaml",
+      "contract_sha256": "1489700a6527ae8af5e7a5306131e8df0d7cec4d39c4fe1f5506dc77b5bbc9da"
+    }
+  }
+}

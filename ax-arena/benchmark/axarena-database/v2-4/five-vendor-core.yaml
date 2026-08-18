@@ -1,0 +1,39 @@
+schema: ax.daeb-v2-4-five-vendor-core/v1
+name: DAEB-V2.4-FIVE-VENDOR-OPEN-WEIGHT-CORE
+formal: false
+status: frozen-for-admission
+primary_unit: vendor
+surface: cli
+vendors: [cockroachdb, insforge, neon, nile, supabase]
+excluded_appendix_vendor:
+  vendor: turso
+  disposition: compatibility-and-journey-only-appendix
+  rationale: >-
+    Turso has completed historical J01 evidence, but has no runnable atomic
+    support in the reviewed task pack. It is not a denominator member of the
+    five-vendor cross-model core and no new Turso cells may be launched.
+trial_count: 2
+atomic_tasks:
+  ids: [db-T17-cli-session-discovery, db-T21-cli-principal-continuity, db-T18-constraint-preservation, db-T19-transactional-record-recovery, db-T20-aggregate-query, db-T22-negative-query-verification]
+  planned_cells_per_model_trial: 30
+primary_journey:
+  id: db-J01-native-journey
+  planned_sessions_per_model_trial: 5
+route_policy:
+  provider_pinned: true
+  fallback: forbidden
+  attempts_per_cell: 1
+  no_silent_retry: true
+  preflight_required: provider-pinning-attested-no-write
+evidence_policy:
+  preserve_raw_observations: true
+  preserve_upstream_and_timeout_events: true
+  final_audit_required: true
+  admission_gate: invalid_infra == 0 && invalid_route == 0
+reporting:
+  primary_table: vendor_rows
+  metric_columns: [outcome, discovery, efficiency, cost]
+  model_and_trial: secondary_slices
+publication_boundary: >-
+  Diagnostic open-weight comparison in a fixed CLI/sandbox environment. It
+  supports vendor-experience analysis, not a universal product ranking.

@@ -1,0 +1,48 @@
+schema: ax.daeb-v2-4-vendor-experience-suite/v1
+name: DAEB-V2.4-CLI-VENDOR-EXPERIENCE-PUBLICATION-CLOSURE
+version: 1.0.0-frozen
+formal: false
+status: frozen
+primary_unit: vendor
+surface: cli
+vendors: [cockroachdb, insforge, neon, nile, supabase, turso]
+model_strata:
+  - model: google/gemini-3.7-flash-20260813
+    provider: google-vertex
+  - model: qwen/qwen3.8-27b-20260814
+    provider: akashml
+  - model: z-ai/glm-5.2-20260616
+    provider: z-ai
+  - model: meta/muse-spark-1.2
+    provider: meta
+  - model: thinkingmachines/inkling-small
+    provider: deepinfra
+  - model: openai/gpt-5.6-luna-20260709
+    provider: openai
+    admission_note: explicitly approved closed-model exception
+  - model: deepseek/deepseek-v4-flash-20260731
+    provider: coreweave
+trial_count: 2
+task_pack_root: ax-arena/benchmark/axarena-database/v2-3/packs
+task_contract: >-
+  The reviewed V2.3 task packs and their independent pre-cleanup read-back
+  oracles are retained byte-for-byte. V2.4 changes only J01 aggregation and
+  evidence classification; it does not change task prompts, vendor scope, or
+  oracle predicates.
+tasks:
+  atomic_diagnostics:
+    ids: [db-T17-cli-session-discovery, db-T21-cli-principal-continuity, db-T18-constraint-preservation, db-T19-transactional-record-recovery, db-T20-aggregate-query, db-T22-negative-query-verification]
+    structural_na: {turso: [db-T17-cli-session-discovery, db-T21-cli-principal-continuity, db-T18-constraint-preservation, db-T19-transactional-record-recovery, db-T20-aggregate-query, db-T22-negative-query-verification]}
+  primary_journey:
+    id: db-J01-native-journey
+    outcome_pass: connection && operation_readback && recovery_readback
+    discovery_reporting: [direct-success, assisted-discovery, unresolved, native-entrypoint-not-observed]
+    evidence_statuses: [valid, invalid-evidence, invalid-infra, invalid-route]
+aggregation:
+  primary: vendor-level J01 completion rate over valid evidence only
+  secondary: atomic diagnostics, discovery friction, latency, tool and route volume, cost
+  reporting: vendors are rows; models and trials are secondary strata
+publication_boundary: >-
+  This is a seven-model, two-trial diagnostic benchmark release. It supports
+  vendor-by-agent-experience comparisons inside this fixed CLI environment,
+  not a universal product ranking.

@@ -1,0 +1,26 @@
+schema: ax.trace-review/v1
+benchmark: CANDIDATE-SUITE-V2-1
+generated_at: 2026-08-15T11:29:00.000Z
+status: completed
+sample_size: 10
+sample_ids:
+  - preflight/harness-r6/pi-google_gemini-3-7-flash-20260813/run-probe.trace.json
+  - preflight/harness-r6/pi-z-ai_glm-5-2-20260616/run-probe.trace.json
+  - preflight/harness-r6/pi-deepseek_deepseek-v4-flash-20260731/run-probe.trace.json
+  - preflight/harness-r6/opencode-google_gemini-3-7-flash-20260813/run-probe.trace.json
+  - preflight/harness-r6/opencode-z-ai_glm-5-2-20260616/run-probe.trace.json
+  - preflight/harness-r6/opencode-deepseek_deepseek-v4-flash-20260731/run-probe.trace.json
+  - workspace://ax-eval/results/daeb-v2-1-cli-session-witness-20260815/run-manifest.json
+  - workspace://ax-eval/results/daeb-v2-1-derived-witness-20260815/run-manifest.json
+  - candidate-suite-v2-1.yaml
+  - pack-readiness.yaml
+reviewer: Codex delegated maintainer review
+reviewed_at: 2026-08-15T11:29:00Z
+commit_sha: 521d433950d054e7d4ea65cc876130d8e787aab1
+findings:
+  - "PASS prompt-integrity: Candidate intents remain vendor-agnostic and do not disclose exact CLI commands, data-plane mappings, hidden fixture setup, or verifier contracts."
+  - "PASS challenge-coverage: Selected tasks retain multi-step state, constraint preservation, negative verification, recoverable fault, recovery, and surface ambiguity tags across the four execution families."
+  - "PASS oracle-witness: Admitted tuples are backed by independent read-back oracles and deterministic controller-owned setup/mutation/verify/cleanup witnesses; the Turso principal-continuity failure remains explicit structural N/A."
+  - "PASS route-fail-closed: The preflight traces show exact canonical model/provider identity for Gemini and GLM; the DeepSeek OpenRouter workspace policy rejection remains a blocked route and is not downgraded to an ordinary model failure."
+  - "NOTE review-independence: This is a delegated maintainer review of the fixed trace sample, not an independent second human sign-off or calibration evidence. Publication policy may require an additional human approval before freeze."
+summary: Delegated maintainer trace review completed for the fixed ten-item sample; independent human sign-off, calibration, freeze, and formal execution remain separate gates.

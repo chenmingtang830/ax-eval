@@ -1,0 +1,16 @@
+{
+  "schema": "ax.daeb-v2-3-freeze-approval/v1",
+  "status": "approved",
+  "approved_at": "2026-08-17T01:55:23.049Z",
+  "reviewer": "workspace owner",
+  "approval_source": "explicit approval in the benchmark-readiness task",
+  "suite_sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15",
+  "review_sha256": "47251c89c4553cc88a13ecff13ce10b588d3d96e14b7e3b52ebeac2b73016069",
+  "decisions": {
+    "task_contracts": "approved",
+    "turso_structural_na": "approved",
+    "source_pack_hashes": "approved"
+  },
+  "scope": "Approves the frozen diagnostic V2.3 suite only. It does not authorize live-provider spend or upgrade any result to a benchmark record.",
+  "path_normalization": "Repository-relative paths replace workstation-absolute paths; approved pack and contract bytes are unchanged."
+}

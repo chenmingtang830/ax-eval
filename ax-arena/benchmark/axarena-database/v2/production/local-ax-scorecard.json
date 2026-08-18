@@ -1,0 +1,3366 @@
+{
+  "schema": "ax.daeb-v2-local-ax-scorecard/v1",
+  "generated_at": "2026-08-15T00:09:07.146Z",
+  "release_id": "daeb-v2-local-cli-core-plus-supabase-extension-20260814",
+  "trust_level": "local",
+  "surface": "cli",
+  "source_policy": "ax-arena/benchmark/axarena-database/v2/production/local-ax-cohort.yaml",
+  "source_policy_sha256": "2b6fd95ab17a4aba4ded67d285e9a71f4c123937a2fcc6289c8e8972d7739543",
+  "policy": {
+    "discovery_source": "observed-transcript-only",
+    "discovery_signals": [
+      "official",
+      "canonical",
+      "misled",
+      "auth"
+    ],
+    "usability_source": "independent-provider-oracle",
+    "composite_formula": "harmonic_mean",
+    "notes": [
+      "Discovery is scored once per vendor, harness, model, and trial cell, before the task batch.",
+      "Hops remain diagnostic and do not enter the discovery scalar.",
+      "Strict gid plus oracle is reported separately and does not alter usability."
+    ]
+  },
+  "release_total": {
+    "task_observations": 228,
+    "tasks_passed": 224,
+    "usability_rate": 0.9824561403508771,
+    "discovery_cells": 36,
+    "discovery_rate": 0.9444444444444444,
+    "ax_composite": 0.9630753667172484,
+    "strict_gid_oracle_passed": 199,
+    "strict_gid_oracle_total": 228,
+    "strict_gid_oracle_rate": 0.8728070175438597,
+    "efficiency": {
+      "coverage": "36/36",
+      "total_duration_ms": 7956853,
+      "mean_duration_ms": 221023.69444444444,
+      "median_duration_ms": 213879.5,
+      "first_action_coverage": "36/36",
+      "mean_first_action_latency_ms": 7140.333333333333,
+      "mean_seconds_per_task_observation": 34.898478070175436
+    },
+    "economics": {
+      "cost_coverage": "18/36",
+      "cost_covered_task_observations": 114,
+      "total_reported_cost_usd": 14.697132799999997,
+      "mean_reported_cost_usd_per_cell": 0.8165073777777776,
+      "reported_cost_usd_per_task_observation": 0.12892221754385963
+    }
+  },
+  "lanes": [
+    {
+      "id": "core-codex-gpt56-terra",
+      "track": "core",
+      "include_in_release_total": true,
+      "harness": "codex",
+      "model": "gpt-5.6-terra",
+      "task_observations": 93,
+      "tasks_passed": 89,
+      "usability_rate": 0.956989247311828,
+      "discovery_cells": 15,
+      "discovery_rate": 0.9,
+      "ax_composite": 0.927620150550087,
+      "strict_gid_oracle_passed": 64,
+      "strict_gid_oracle_total": 93,
+      "strict_gid_oracle_rate": 0.6881720430107527,
+      "efficiency": {
+        "coverage": "15/15",
+        "total_duration_ms": 3744371,
+        "mean_duration_ms": 249624.73333333334,
+        "median_duration_ms": 270001,
+        "first_action_coverage": "15/15",
+        "mean_first_action_latency_ms": 12707.066666666668,
+        "mean_seconds_per_task_observation": 40.26205376344086
+      },
+      "economics": {
+        "cost_coverage": "0/15",
+        "cost_covered_task_observations": 0,
+        "total_reported_cost_usd": null,
+        "mean_reported_cost_usd_per_cell": null,
+        "reported_cost_usd_per_task_observation": null
+      },
+      "vendors": [
+        {
+          "vendor": "cockroachdb",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 14,
+          "strict_gid_oracle_total": 21,
+          "strict_gid_oracle_rate": 0.6666666666666666,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 557083,
+            "mean_duration_ms": 185694.33333333334,
+            "median_duration_ms": 198892,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 12526.666666666666,
+            "mean_seconds_per_task_observation": 26.527761904761903
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "insforge",
+          "task_observations": 18,
+          "tasks_passed": 14,
+          "usability_rate": 0.7777777777777778,
+          "discovery_cells": 3,
+          "discovery_rate": 0.6666666666666666,
+          "ax_composite": 0.717948717948718,
+          "strict_gid_oracle_passed": 3,
+          "strict_gid_oracle_total": 18,
+          "strict_gid_oracle_rate": 0.16666666666666666,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 665456,
+            "mean_duration_ms": 221818.66666666666,
+            "median_duration_ms": 196409,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 10846.333333333334,
+            "mean_seconds_per_task_observation": 36.96977777777778
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "neon",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 14,
+          "strict_gid_oracle_total": 21,
+          "strict_gid_oracle_rate": 0.6666666666666666,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 704376,
+            "mean_duration_ms": 234792,
+            "median_duration_ms": 220921,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 14847,
+            "mean_seconds_per_task_observation": 33.541714285714285
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "nile",
+          "task_observations": 18,
+          "tasks_passed": 18,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 0.8333333333333334,
+          "ax_composite": 0.9090909090909091,
+          "strict_gid_oracle_passed": 18,
+          "strict_gid_oracle_total": 18,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 918006,
+            "mean_duration_ms": 306002,
+            "median_duration_ms": 313873,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 14495.333333333334,
+            "mean_seconds_per_task_observation": 51.00033333333333
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "turso",
+          "task_observations": 15,
+          "tasks_passed": 15,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 15,
+          "strict_gid_oracle_total": 15,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 899450,
+            "mean_duration_ms": 299816.6666666667,
+            "median_duration_ms": 285755,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 10820,
+            "mean_seconds_per_task_observation": 59.96333333333334
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        }
+      ],
+      "cells": [
+        {
+          "vendor": "cockroachdb",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/cockroachdb/trial-1",
+          "input_sha256": {
+            "model_audit": "8c2209331244e5db9589364795582c241db6d34da529e4b19fbd53d9b85441e1",
+            "executor_result": "4eac08889de5dac7bb796fda52388ca42c23c8dea9afca563e868dd342e168cf",
+            "invoke_telemetry": "acd2ca4fae1007dbab76a5006192767458f25c9978b950308bc1bf2bca0fe920",
+            "transcript": "88604ab06c1376c318db3fd07a85412e7da66dbe0e6fc9c945708cc635cd80e7",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 42,
+            "emitted_events": 15,
+            "malformed_events": 1
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 270001,
+            "first_action_latency_ms": 14066
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "cockroachdb",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/cockroachdb/trial-2",
+          "input_sha256": {
+            "model_audit": "7bd0036056c1bf7d4c07dbbfb69723a5d92594ca680d70546679a72e4529f6c1",
+            "executor_result": "04dc649932e251576c9d698aeeb4148c4fd68d45472f8e02e3fdca00dcc4ef2f",
+            "invoke_telemetry": "abc7f9006c6f78891c9595a85b33b327fbdda839963d4950c8a2f2adaa9b5660",
+            "transcript": "7147be6c48d834d400d2e5d02334cb9b2106811989ed16ccd3cf4e44369a4ebd",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 16,
+            "emitted_events": 5,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 0,
+            "total": 7,
+            "rate": 0
+          },
+          "efficiency": {
+            "duration_ms": 88190,
+            "first_action_latency_ms": 9951
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "cockroachdb",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/cockroachdb/trial-3",
+          "input_sha256": {
+            "model_audit": "eba1257dc7f03b6053fa83b1a1c36751deb7848d0796a8d332417de7592e5b6c",
+            "executor_result": "e9dd2b67746dc63bed888177fd79d0b253ab4168f5e2a62119c2f5d94cf6eb3f",
+            "invoke_telemetry": "4804b659998c63ea5c113481bb86f9b0e78db825d8e4828b145708e35caa9992",
+            "transcript": "45705cb9681f9ec222f6146c18ac6c6b208c60a4e0d4fdbcdafa824a2c7a1e40",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 45,
+            "emitted_events": 18,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 198892,
+            "first_action_latency_ms": 13563
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/insforge/trial-1",
+          "input_sha256": {
+            "model_audit": "b731808ffd576592a1ae12b45de2e85a459683487b780a0339e4e2f215de964b",
+            "executor_result": "59a0cc5cc24db5a911011b26aea981da8281cf801bc68024d7a57e70ab142e8b",
+            "invoke_telemetry": "0b1b83071dfc294db9d26141ca5a981653aabf55ec80ff5a064180d8c9eb2359",
+            "transcript": "5eac8de86b93932392d00b5bffbed4d6e87c5c2dfec44f54fbd4becd381ccecd",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 50,
+            "emitted_events": 20,
+            "malformed_events": 1
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 0.5,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": false,
+              "misled": true,
+              "auth": false
+            }
+          },
+          "strict": {
+            "passed": 1,
+            "total": 6,
+            "rate": 0.16666666666666666
+          },
+          "efficiency": {
+            "duration_ms": 274526,
+            "first_action_latency_ms": 11426
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/insforge/trial-2",
+          "input_sha256": {
+            "model_audit": "11915855cc58e8634ab25f67e158ba815f32816192a55b37019e5b8f393c219b",
+            "executor_result": "32a7cbde4aec7b5e20f5fd1f9ff6866b79a30bf3ad8391db35019c9b3a1266d5",
+            "invoke_telemetry": "3f132ef70a1d659230ff5656fbd91fda864319369fcce2bb5a386914aba1e49c",
+            "transcript": "31f91a10d891b21d1da5c24a642bb8aae6605646306959b41ebb8569a10f980a",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 36,
+            "emitted_events": 14,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 2,
+            "total": 6,
+            "rate": 0.3333333333333333
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 0.5,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": false,
+              "misled": true,
+              "auth": false
+            }
+          },
+          "strict": {
+            "passed": 1,
+            "total": 6,
+            "rate": 0.16666666666666666
+          },
+          "efficiency": {
+            "duration_ms": 196409,
+            "first_action_latency_ms": 10354
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/insforge/trial-3",
+          "input_sha256": {
+            "model_audit": "ad8fefc41f5beb10ce908965c0decfbbb38ff8f56f0ed384c8e2b9f4bc5bf53c",
+            "executor_result": "ef1dcee67306b432013a7eb400a9d185dcf7746acb1352a397217e52970f4717",
+            "invoke_telemetry": "46750f9ced15468ece4575fe27247020c1e21842687ee11b109dc4703cfd30f4",
+            "transcript": "8a8e7a190c7e042e24b22ae99e0fc6b77bfaab9439d9ba1745c9a5a0594198fa",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 30,
+            "emitted_events": 11,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 1,
+            "total": 6,
+            "rate": 0.16666666666666666
+          },
+          "efficiency": {
+            "duration_ms": 194521,
+            "first_action_latency_ms": 10759
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/neon/trial-1",
+          "input_sha256": {
+            "model_audit": "ced74dfa8655970541279415f2a0754381dc8b8eccabe1c4c1d25debb6ddb3d2",
+            "executor_result": "9f17b8b7bf1ffbe8487d7291efb8c49e6c7f22533272ae8d90bc803ef0e1b60a",
+            "invoke_telemetry": "0514a347d8a9a84a10f12eee1b82c00b67212f9394df35c2d81625a2eb1c364d",
+            "transcript": "af0a4120c00bca8bee8652e40baeb2b6a45b662aac930a100e351a311f8e4227",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 62,
+            "emitted_events": 25,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 7,
+            "rate": 0.8571428571428571
+          },
+          "efficiency": {
+            "duration_ms": 324619,
+            "first_action_latency_ms": 12501
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/neon/trial-2",
+          "input_sha256": {
+            "model_audit": "10ddd65aba63574d17b31156fd4eb009df410a5c7d36035276180f06572dec50",
+            "executor_result": "58615a8946a01b6ee793fbf040314b20853a511c268890f6c52f9a5b82f4a6f1",
+            "invoke_telemetry": "b35b7221919097f97068657292e278f5b07963b410447d1f08bae0dcf02d96ea",
+            "transcript": "fa5d1701643e28f47635e3f3ff0a2fad4663bb713be94ef6a8a853e970fee4a8",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 36,
+            "emitted_events": 14,
+            "malformed_events": 1
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 220921,
+            "first_action_latency_ms": 13604
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-production-20260814/neon/trial-3",
+          "input_sha256": {
+            "model_audit": "e9915ed4fb5687d0aa6bc7872e3baa14342ed6b7ef0247d8975fcf5d030021f9",
+            "executor_result": "7a6a8933f7ee557faea5242e5e292465c6f46a6069fd674352a7fb57495253bd",
+            "invoke_telemetry": "81c2246d2cf5b251a6bfb1563b02f039462f470ff9fd1adba0264788baccf3c8",
+            "transcript": "de932e2b13cede0036c6fb0279bf987ef9ca675e4f4eaca44eb10b082108cba7",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 32,
+            "emitted_events": 11,
+            "malformed_events": 1
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 1,
+            "total": 7,
+            "rate": 0.14285714285714285
+          },
+          "efficiency": {
+            "duration_ms": 158836,
+            "first_action_latency_ms": 18436
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-nile-repair-20260814/nile/trial-1",
+          "input_sha256": {
+            "model_audit": "ca37e2bb6f51d67efe22474561519669b568c276bac85e31e03d9cd80543d208",
+            "executor_result": "ffc0e2fe0b797785becef5a3496b01711b8d2bbdf3fe8e07b23d50b397c78678",
+            "invoke_telemetry": "fd4e9f2644ce656b49d040a255411c0a71d341cf108027bd05bba2b661e1386d",
+            "transcript": "94c13a7439f3ad4b3c58b7cc9f48265deada854545ae60397cf6d229bfc480f5",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 46,
+            "emitted_events": 20,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 0.5,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": false,
+              "misled": true,
+              "auth": false
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 279270,
+            "first_action_latency_ms": 21508
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-nile-repair-20260814/nile/trial-2",
+          "input_sha256": {
+            "model_audit": "6440a51c0f82acfb417db2a61e023e8688a7c0adeded59fbb13a1407fbe17d33",
+            "executor_result": "c66deaf553faa794e66a5c90f77a3b801a259c3e702196eb7a95ff583e692bcb",
+            "invoke_telemetry": "4b80c9bfd7b244eb0c18ec73128c6640f4c7f7d8a4fee504bc3bc64fa14267df",
+            "transcript": "5d5e5dad6dd2a7b4d36daf15cb3fb2c6e578fc4e1224ca17c93f8e8c78a46543",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 64,
+            "emitted_events": 28,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 324863,
+            "first_action_latency_ms": 11656
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-codex-gpt56-nile-repair-20260814/nile/trial-3",
+          "input_sha256": {
+            "model_audit": "5bcfafdf930457caea7fc20ae36c92c3768307d2a6f59f3c6beff00ca6be0b71",
+            "executor_result": "e8de096566cbebb52a94df684583e9f28a1516291b7e56f155c15cdc94d89ffe",
+            "invoke_telemetry": "550a24c22c33938fcb9ef463397563f93b71d4b9126a1f45b67ec7032c0e757f",
+            "transcript": "053b8d40a6915c7be69ecb6b28135ccfa5cc6df92b9cdd6d900d232ab8d3497e",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 63,
+            "emitted_events": 26,
+            "malformed_events": 1
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 313873,
+            "first_action_latency_ms": 10322
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-turso-final-pack-codex-20260814/turso/trial-1",
+          "input_sha256": {
+            "model_audit": "20a7b18496820ac0a0b2e24af764106102f6b1f3f720b673f8bf58614287038e",
+            "executor_result": "89551e546379eb94e564e4a8b55053f7efdb36e809cc41b304600f2fe3da07bb",
+            "invoke_telemetry": "9eb4ca4b17c0ffa4b5497174b668b96f672742bbfc47368d8a6dd120fb8c2a37",
+            "transcript": "973f950643ee607e5cc4117d60875da278101093eba0bc5e06dcb5ad9faf5e15",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 19,
+            "emitted_events": 7,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 234685,
+            "first_action_latency_ms": 11621
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-turso-final-pack-codex-20260814/turso/trial-2",
+          "input_sha256": {
+            "model_audit": "d514aac6e5703b52ebf0f7ecfb85b8b9e201751dc360a6a329d4f599861949a3",
+            "executor_result": "c07404322897bea1585ef968245058344240358ab3a8be8b7c65f43a5ec082dc",
+            "invoke_telemetry": "3b996dc5f100710190e0569a346b278401c06ef55d7442582c109358b6760dea",
+            "transcript": "14a705ca906631670329a3f54527c74c7bfae21d3e12152da867c286dccdfd1e",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 42,
+            "emitted_events": 16,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 5,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 379010,
+            "first_action_latency_ms": 9374
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-turso-final-pack-codex-20260814/turso/trial-3",
+          "input_sha256": {
+            "model_audit": "32af5fbff388844c093537d15fe614f0ce645dbd1539f165f46a14f410084f1e",
+            "executor_result": "031624571751fbd58a57cc73519584fc78c1912d316d1792f9b198fc7f64ee52",
+            "invoke_telemetry": "a0b19a4bae09f521efdda5e02617a02388366696f180a324f34a27778608e567",
+            "transcript": "30aa2f0477719b85f2f7bd802be32167b92c8ebc68676a01935c0038cfc1340d",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 54,
+            "emitted_events": 23,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 5,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 285755,
+            "first_action_latency_ms": 11465
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "core-claude-sonnet5",
+      "track": "core",
+      "include_in_release_total": true,
+      "harness": "claude-code",
+      "model": "claude-sonnet-5",
+      "task_observations": 93,
+      "tasks_passed": 93,
+      "usability_rate": 1,
+      "discovery_cells": 15,
+      "discovery_rate": 1,
+      "ax_composite": 1,
+      "strict_gid_oracle_passed": 93,
+      "strict_gid_oracle_total": 93,
+      "strict_gid_oracle_rate": 1,
+      "efficiency": {
+        "coverage": "15/15",
+        "total_duration_ms": 2790453,
+        "mean_duration_ms": 186030.2,
+        "median_duration_ms": 193049,
+        "first_action_coverage": "15/15",
+        "mean_first_action_latency_ms": 1296.2666666666667,
+        "mean_seconds_per_task_observation": 30.004870967741937
+      },
+      "economics": {
+        "cost_coverage": "15/15",
+        "cost_covered_task_observations": 93,
+        "total_reported_cost_usd": 12.186781199999999,
+        "mean_reported_cost_usd_per_cell": 0.8124520799999999,
+        "reported_cost_usd_per_task_observation": 0.13104065806451612
+      },
+      "vendors": [
+        {
+          "vendor": "cockroachdb",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 21,
+          "strict_gid_oracle_total": 21,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 578829,
+            "mean_duration_ms": 192943,
+            "median_duration_ms": 193098,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 1322,
+            "mean_seconds_per_task_observation": 27.563285714285712
+          },
+          "economics": {
+            "cost_coverage": "3/3",
+            "cost_covered_task_observations": 21,
+            "total_reported_cost_usd": 2.6609174,
+            "mean_reported_cost_usd_per_cell": 0.8869724666666667,
+            "reported_cost_usd_per_task_observation": 0.12671035238095238
+          }
+        },
+        {
+          "vendor": "insforge",
+          "task_observations": 18,
+          "tasks_passed": 18,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 18,
+          "strict_gid_oracle_total": 18,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 495613,
+            "mean_duration_ms": 165204.33333333334,
+            "median_duration_ms": 158552,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 1233.3333333333333,
+            "mean_seconds_per_task_observation": 27.534055555555554
+          },
+          "economics": {
+            "cost_coverage": "3/3",
+            "cost_covered_task_observations": 18,
+            "total_reported_cost_usd": 2.1545113000000002,
+            "mean_reported_cost_usd_per_cell": 0.7181704333333334,
+            "reported_cost_usd_per_task_observation": 0.11969507222222224
+          }
+        },
+        {
+          "vendor": "neon",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 21,
+          "strict_gid_oracle_total": 21,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 650489,
+            "mean_duration_ms": 216829.66666666666,
+            "median_duration_ms": 216112,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 1269,
+            "mean_seconds_per_task_observation": 30.97566666666667
+          },
+          "economics": {
+            "cost_coverage": "3/3",
+            "cost_covered_task_observations": 21,
+            "total_reported_cost_usd": 2.742787,
+            "mean_reported_cost_usd_per_cell": 0.9142623333333333,
+            "reported_cost_usd_per_task_observation": 0.13060890476190476
+          }
+        },
+        {
+          "vendor": "nile",
+          "task_observations": 18,
+          "tasks_passed": 18,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 18,
+          "strict_gid_oracle_total": 18,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 520648,
+            "mean_duration_ms": 173549.33333333334,
+            "median_duration_ms": 160668,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 1339.3333333333333,
+            "mean_seconds_per_task_observation": 28.92488888888889
+          },
+          "economics": {
+            "cost_coverage": "3/3",
+            "cost_covered_task_observations": 18,
+            "total_reported_cost_usd": 2.3315452,
+            "mean_reported_cost_usd_per_cell": 0.7771817333333333,
+            "reported_cost_usd_per_task_observation": 0.12953028888888887
+          }
+        },
+        {
+          "vendor": "turso",
+          "task_observations": 15,
+          "tasks_passed": 15,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 15,
+          "strict_gid_oracle_total": 15,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 544874,
+            "mean_duration_ms": 181624.66666666666,
+            "median_duration_ms": 170212,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 1317.6666666666667,
+            "mean_seconds_per_task_observation": 36.324933333333334
+          },
+          "economics": {
+            "cost_coverage": "3/3",
+            "cost_covered_task_observations": 15,
+            "total_reported_cost_usd": 2.2970203000000002,
+            "mean_reported_cost_usd_per_cell": 0.7656734333333334,
+            "reported_cost_usd_per_task_observation": 0.1531346866666667
+          }
+        }
+      ],
+      "cells": [
+        {
+          "vendor": "cockroachdb",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/cockroachdb/trial-1",
+          "input_sha256": {
+            "model_audit": "468278c22ed717441950e7a73108c9031da66c0f9bc3c0fb0cfdc001df0621df",
+            "executor_result": "00f7b7a15c1c2b69a7683dba0469aa54a23245707d4dbb2414c2af1e3bf8a7c5",
+            "invoke_telemetry": "f6897972e8331b0c29b7a1186b7ab6dad39ba6ad8209054194ff677ce4dc8da1",
+            "transcript": "59273726b291be6a44de8f2a20459019e9e245a60e55671e8fea7673789b66db",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 133,
+            "emitted_events": 46,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 174084,
+            "first_action_latency_ms": 1590
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.7496102,
+            "token_usage": {
+              "input_tokens": 36,
+              "output_tokens": 15957,
+              "cache_read_input_tokens": 972124,
+              "cache_creation_input_tokens": 35189,
+              "total_tokens": 15993
+            }
+          }
+        },
+        {
+          "vendor": "cockroachdb",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/cockroachdb/trial-2",
+          "input_sha256": {
+            "model_audit": "aed4d79deab274596855ce600f6afa3d8c2dbb1ca849777d0595fbe1587003ef",
+            "executor_result": "58fb15a94d37c192328451ba90191034630812dda51c568e889cb19c6edabfd5",
+            "invoke_telemetry": "a3e4208aa3511b8401a8bae15850a3c65f6efeced04c62620d2f64c92ab1a3ed",
+            "transcript": "b3d6bd67ba3c06909d39517a18a0d21d032e15c83fbf47ebbbb344f8b99ccd11",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 148,
+            "emitted_events": 54,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 211647,
+            "first_action_latency_ms": 1087
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9618599000000001,
+            "token_usage": {
+              "input_tokens": 50,
+              "output_tokens": 19718,
+              "cache_read_input_tokens": 1422573,
+              "cache_creation_input_tokens": 38632,
+              "total_tokens": 19768
+            }
+          }
+        },
+        {
+          "vendor": "cockroachdb",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/cockroachdb/trial-3",
+          "input_sha256": {
+            "model_audit": "3c6136ceaf7d28505feb01af64ac704b97747b7d1a0cae802cdcf67f466c59a2",
+            "executor_result": "5c3cc0f4a855332862f4983ac1a239b395d23685212dc6f6dd82c7778375a900",
+            "invoke_telemetry": "c059ccbd0dd3d9fd34a7b24aad729c2ca7b2a4a2ca0cc2bd3c5a213e103f5cb4",
+            "transcript": "c73307b5c70a27bbddd392de66a380cb0b825a5184ee6cedb8096fe12c326ab8",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 140,
+            "emitted_events": 44,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 193098,
+            "first_action_latency_ms": 1289
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9494473,
+            "token_usage": {
+              "input_tokens": 40,
+              "output_tokens": 16024,
+              "cache_read_input_tokens": 1253891,
+              "cache_creation_input_tokens": 46610,
+              "total_tokens": 16064
+            }
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/insforge/trial-1",
+          "input_sha256": {
+            "model_audit": "5ccb3f4f62ebe577c9840bc6bd42d6aeb00e7ea5b286f511dad0491ff5d0b8c7",
+            "executor_result": "97bc83c233e6289c4874a96627f5449c9d4ed3b262596fcbfc31aac7ccc94787",
+            "invoke_telemetry": "62997725b51ac0f92f217d8550d34d2832ba94c81e9895b3dd4798494cebbb9d",
+            "transcript": "03229566b2c378024998fb1a0d2440917b633e7345be034168768f0684937433",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 104,
+            "emitted_events": 34,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 158552,
+            "first_action_latency_ms": 1380
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.6774548,
+            "token_usage": {
+              "input_tokens": 26,
+              "output_tokens": 14848,
+              "cache_read_input_tokens": 689906,
+              "cache_creation_input_tokens": 32654,
+              "total_tokens": 14874
+            }
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/insforge/trial-2",
+          "input_sha256": {
+            "model_audit": "f5bd6ee9cf2ff516c1c1d045ddee61f5867c9b15892e9ed0c9de185da233bfe8",
+            "executor_result": "fe5750d65af88201ebc13231ce689c5ee1485e759091c894ac3df0d87f87b1a9",
+            "invoke_telemetry": "c5235db77168bb309068749019b5968dabf7ea41fe18c65a8fa0ca504abebf38",
+            "transcript": "d171d18e17b9762687d0605dbb2007f27fef509dc6b7506b8fe726f371c351f8",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 146,
+            "emitted_events": 54,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 193049,
+            "first_action_latency_ms": 1252
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.8665967999999998,
+            "token_usage": {
+              "input_tokens": 52,
+              "output_tokens": 18791,
+              "cache_read_input_tokens": 1302656,
+              "cache_creation_input_tokens": 31366,
+              "total_tokens": 18843
+            }
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/insforge/trial-3",
+          "input_sha256": {
+            "model_audit": "86095365a16a85ac1a0cf666276bdf2a391a485b84f3848cd9ff4ba17a9e3c61",
+            "executor_result": "d6f20c17e529eeae3b41de66efae02f2b4cc744384e6188af49190306048dfe6",
+            "invoke_telemetry": "88737eeeab5d1a91c3a5fbac3c527ac74d292cd9dea1670b87b59b453f4af097",
+            "transcript": "6586c1a8e11def68a81093c1e1f5dcd63f2b10c9c9b7a7cf3cbb5202c19e629e",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 100,
+            "emitted_events": 30,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 144012,
+            "first_action_latency_ms": 1068
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.6104597,
+            "token_usage": {
+              "input_tokens": 30,
+              "output_tokens": 13948,
+              "cache_read_input_tokens": 749949,
+              "cache_creation_input_tokens": 28432,
+              "total_tokens": 13978
+            }
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/neon/trial-1",
+          "input_sha256": {
+            "model_audit": "aaae067c7fbf693429388c1943be6c937eb2e2b9f30ad55acb2e4265863cd857",
+            "executor_result": "0ef2882bbbb875358fd9dc26a167d5c0cd91e194ccea6f160287a897ef1bd4bf",
+            "invoke_telemetry": "82ff06d8f400d30d4c45cf04a9d73b5014dd964d987f7521f4361f2e66d92faf",
+            "transcript": "8f6e1785ed940004d153764701530885e4ba4f0145c1f6e7f449e70828022c62",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 161,
+            "emitted_events": 54,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 232237,
+            "first_action_latency_ms": 1548
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9379029000000001,
+            "token_usage": {
+              "input_tokens": 40,
+              "output_tokens": 22420,
+              "cache_read_input_tokens": 1133473,
+              "cache_creation_input_tokens": 38499,
+              "total_tokens": 22460
+            }
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/neon/trial-2",
+          "input_sha256": {
+            "model_audit": "bb6a935c7f4d82f3d204c5953c7109e4d98b804da11760c0bda8d9bea7af519e",
+            "executor_result": "ba80efe8fb1cd6647af35e4dae6930b2e4eb27ce948e70caf06a4b6c0fed1b38",
+            "invoke_telemetry": "7a4f2ae07bd1818b4a42488c20faad657195296c95396cc3c140023aaf56e7cc",
+            "transcript": "e9c456f3a37fac2fafae3a690dcd099b30f73ba71ac838278a8c9c8111d2bfb7",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 127,
+            "emitted_events": 30,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 202140,
+            "first_action_latency_ms": 1170
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.8465427,
+            "token_usage": {
+              "input_tokens": 30,
+              "output_tokens": 20408,
+              "cache_read_input_tokens": 825729,
+              "cache_creation_input_tokens": 43594,
+              "total_tokens": 20438
+            }
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-auto-production-20260814/neon/trial-3",
+          "input_sha256": {
+            "model_audit": "6366b4d80747d03a0f2a9387576930498934dab1034af2635d01bf5d96f86726",
+            "executor_result": "eba2a3bf77d16ffbd8ae844660d64adde17d13e4f1aeabf12d40a324ed91d1bc",
+            "invoke_telemetry": "0a498070289e23639c0575243d17f3c6e2fc7800b761d980a2b7001459304a4b",
+            "transcript": "19aeef3400bc1d2439d0d2dccc4c49eee6afba671757a350182adf5ca3de7f54",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 186,
+            "emitted_events": 82,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 216112,
+            "first_action_latency_ms": 1089
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9583413999999999,
+            "token_usage": {
+              "input_tokens": 44,
+              "output_tokens": 20979,
+              "cache_read_input_tokens": 1235078,
+              "cache_creation_input_tokens": 40535,
+              "total_tokens": 21023
+            }
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-nile-trace-repair-20260814/nile/trial-1",
+          "input_sha256": {
+            "model_audit": "a79d8c4ca30ac79ce84c3da15a1d891b269282582af40a413c9daa4d7bf19e24",
+            "executor_result": "c1ac2bb0bfd109ae4ce7ac4c039342c5616958ab420c78469b79ecdc45a380b9",
+            "invoke_telemetry": "a7992c43cc28b1a0ca78761c88b411706d11350d8f66ab6f17530d741b600c2d",
+            "transcript": "faba61e011f5cfbc7b886d28bacc7b38786704cbf2a48faa3434be81ec570178",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 172,
+            "emitted_events": 50,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 242390,
+            "first_action_latency_ms": 1353
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9905583,
+            "token_usage": {
+              "input_tokens": 44,
+              "output_tokens": 23235,
+              "cache_read_input_tokens": 1235751,
+              "cache_creation_input_tokens": 40051,
+              "total_tokens": 23279
+            }
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-nile-repair-20260814/nile/trial-2",
+          "input_sha256": {
+            "model_audit": "bd20a0fb6c12d2a74967531a1686e69fdee403f56b7ce5b15d88fbe4fe17bcdb",
+            "executor_result": "2e21426daa768287520e18fb18e1b8525e57b0e5c9a882cd3d311557fa2d6498",
+            "invoke_telemetry": "c28367f622ff72dea3d590a8dec78108cc7a2fcff25124d3b3037aa06f6121ab",
+            "transcript": "d8de198d1296bb97d771548356d89f25a46fc406a357f3af1b086b09493633dd",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 118,
+            "emitted_events": 50,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 160668,
+            "first_action_latency_ms": 1283
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.7884955999999999,
+            "token_usage": {
+              "input_tokens": 48,
+              "output_tokens": 14185,
+              "cache_read_input_tokens": 1231922,
+              "cache_creation_input_tokens": 29569,
+              "total_tokens": 14233
+            }
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-claude-sonnet5-nile-repair-20260814/nile/trial-3",
+          "input_sha256": {
+            "model_audit": "1233f9bba15323ee02722a78aef697ff464425768d0e98abc3378f80269b72f4",
+            "executor_result": "dbe05e84cc16ef31976cbe4718fb96b966874a56b6ceec0484cef8e3e8bdb3e7",
+            "invoke_telemetry": "f3a8e1e580f35782e5e61cce9415a270fda56d4f40769a59e6298d142cd58d2c",
+            "transcript": "f6a366eb4fb99f3504e159df14b1895947201a08a0fc62cfe037cc4b46924e5d",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 75,
+            "emitted_events": 30,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 117590,
+            "first_action_latency_ms": 1382
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.5524912999999999,
+            "token_usage": {
+              "input_tokens": 28,
+              "output_tokens": 10351,
+              "cache_read_input_tokens": 669231,
+              "cache_creation_input_tokens": 31682,
+              "total_tokens": 10379
+            }
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-turso-final-pack-claude-20260814/turso/trial-1",
+          "input_sha256": {
+            "model_audit": "88c120407ff7298c22a8da4e56d8b02f2184e501a52d14ff95a62ca893239653",
+            "executor_result": "2033b8ad649fc0a0177e59f629b95f020fd019fb32e12a6b4dd7aa29c6a14d84",
+            "invoke_telemetry": "124dc23b1040c6ba3c950f72280fc457a8910b9bf583f8cbc7872bee4c0ae48d",
+            "transcript": "fb5fbd29b846a4c1fb98fcc294b9f015ac6d633fecb51eba6bf69f5c245fe89c",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 121,
+            "emitted_events": 40,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 170212,
+            "first_action_latency_ms": 1714
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.7353863,
+            "token_usage": {
+              "input_tokens": 32,
+              "output_tokens": 14959,
+              "cache_read_input_tokens": 799211,
+              "cache_creation_input_tokens": 36742,
+              "total_tokens": 14991
+            }
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-turso-final-pack-claude-20260814/turso/trial-2",
+          "input_sha256": {
+            "model_audit": "75b391f4998680238d699aaad760c6c8eb41971a5a51a03fc8ae205dab9af777",
+            "executor_result": "3fd574ea8036ae057e90d6ecbdaeef0f1bb31db54b2e54c9a9767e9c57e45cda",
+            "invoke_telemetry": "210706cbf49000a78208baaffd15f968cdbec0ca4694e7f67b58f7de4becfac3",
+            "transcript": "ac8f59ea270164d8ffd6d7fe19fad55f8bfd8124277271d688fb270fb89561a7",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 109,
+            "emitted_events": 36,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 151270,
+            "first_action_latency_ms": 1066
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.6513680000000001,
+            "token_usage": {
+              "input_tokens": 36,
+              "output_tokens": 14399,
+              "cache_read_input_tokens": 871380,
+              "cache_creation_input_tokens": 28159,
+              "total_tokens": 14435
+            }
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-turso-final-pack-claude-20260814/turso/trial-3",
+          "input_sha256": {
+            "model_audit": "6b6875693b3d43472ca34f5747bb6f5caea542556a0b18bcece4e9c418cef770",
+            "executor_result": "41d2324d340019448bd62b244a96a5fe586fdb3ef7a0c964660c959b37ef87d5",
+            "invoke_telemetry": "b471d29b3ba7f2434dfb5b3325138098b22d76130b23bce536d3556f665be559",
+            "transcript": "e4190e5fe5c0643083209714ad131bf210db7c5ef252d519944804b6595f7727",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 158,
+            "emitted_events": 45,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 223392,
+            "first_action_latency_ms": 1173
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9102659999999999,
+            "token_usage": {
+              "input_tokens": 44,
+              "output_tokens": 20438,
+              "cache_read_input_tokens": 1142510,
+              "cache_creation_input_tokens": 35028,
+              "total_tokens": 20482
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "supabase-cli-codex-gpt56-terra",
+      "track": "supabase-cli-extension",
+      "include_in_release_total": true,
+      "harness": "codex",
+      "model": "gpt-5.6-terra",
+      "task_observations": 21,
+      "tasks_passed": 21,
+      "usability_rate": 1,
+      "discovery_cells": 3,
+      "discovery_rate": 0.8333333333333334,
+      "ax_composite": 0.9090909090909091,
+      "strict_gid_oracle_passed": 21,
+      "strict_gid_oracle_total": 21,
+      "strict_gid_oracle_rate": 1,
+      "efficiency": {
+        "coverage": "3/3",
+        "total_duration_ms": 859933,
+        "mean_duration_ms": 286644.3333333333,
+        "median_duration_ms": 265505,
+        "first_action_coverage": "3/3",
+        "mean_first_action_latency_ms": 14438,
+        "mean_seconds_per_task_observation": 40.94919047619047
+      },
+      "economics": {
+        "cost_coverage": "0/3",
+        "cost_covered_task_observations": 0,
+        "total_reported_cost_usd": null,
+        "mean_reported_cost_usd_per_cell": null,
+        "reported_cost_usd_per_task_observation": null
+      },
+      "vendors": [
+        {
+          "vendor": "supabase",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 0.8333333333333334,
+          "ax_composite": 0.9090909090909091,
+          "strict_gid_oracle_passed": 21,
+          "strict_gid_oracle_total": 21,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 859933,
+            "mean_duration_ms": 286644.3333333333,
+            "median_duration_ms": 265505,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 14438,
+            "mean_seconds_per_task_observation": 40.94919047619047
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        }
+      ],
+      "cells": [
+        {
+          "vendor": "supabase",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-supabase-cli-extension-codex2-20260814/supabase/trial-1",
+          "input_sha256": {
+            "model_audit": "16e65fd9e5b513863e3aeea9b9c4c05eafa7fd02acd68a25cb88dfb0f5e66e1a",
+            "executor_result": "9be33382361e0c6f753d56b604eef797f30cfbe84eccd2777166fae7b827cd4e",
+            "invoke_telemetry": "a57b11d3efd512136f79f59bdde7ae8fa37bcd826bf0dd4cf9150225fc26f11e",
+            "transcript": "415a62015f269af6efcee8adf6392bd5c0781620e30243eec50a919b6a28e4a0",
+            "pack": "10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 55,
+            "emitted_events": 25,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 264247,
+            "first_action_latency_ms": 18527
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "supabase",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-supabase-cli-extension-codex2-20260814/supabase/trial-2",
+          "input_sha256": {
+            "model_audit": "5caf93632ebd8e8652c22fd774e4405f12981570f626530e8f1079f551bf94e6",
+            "executor_result": "b15a97b10ff3af27b90263bfed3d0e15d4c8a01c206c10583d41307ad8116161",
+            "invoke_telemetry": "1eb2b6672e3ea3bce2c5de3912e619a145753b9ac4b694a89cab2b9065a24fe3",
+            "transcript": "6170f60a03c6743abba167fc2b791d3677692915fcade4779b1833d99b22b956",
+            "pack": "10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 69,
+            "emitted_events": 29,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 0.5,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": false,
+              "misled": true,
+              "auth": false
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 330181,
+            "first_action_latency_ms": 10214
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        },
+        {
+          "vendor": "supabase",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-supabase-cli-extension-codex2-20260814/supabase/trial-3",
+          "input_sha256": {
+            "model_audit": "b56c0ceb9bc27c0c92fcfbb4c8c347d5c9979d8856ca169fb39bc9d30538f8fd",
+            "executor_result": "78d4dbf7458b34c5ee3b59f04fd4d98ad54f84722ba6d35e4f288abe6c5caec4",
+            "invoke_telemetry": "ac7492c79d531cf6b2b27361861ea95312b5549acbbbae61203ec09f733283da",
+            "transcript": "30142dbcd8855536fa54f46b78a9815634d579a71a62f2b91ca03c09036ba104",
+            "pack": "10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784"
+          },
+          "decoder": {
+            "id": "codex",
+            "version": 1,
+            "recognized_events": 44,
+            "emitted_events": 18,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 265505,
+            "first_action_latency_ms": 14573
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "supabase-cli-claude-sonnet5",
+      "track": "supabase-cli-extension",
+      "include_in_release_total": true,
+      "harness": "claude-code",
+      "model": "claude-sonnet-5",
+      "task_observations": 21,
+      "tasks_passed": 21,
+      "usability_rate": 1,
+      "discovery_cells": 3,
+      "discovery_rate": 1,
+      "ax_composite": 1,
+      "strict_gid_oracle_passed": 21,
+      "strict_gid_oracle_total": 21,
+      "strict_gid_oracle_rate": 1,
+      "efficiency": {
+        "coverage": "3/3",
+        "total_duration_ms": 562096,
+        "mean_duration_ms": 187365.33333333334,
+        "median_duration_ms": 189292,
+        "first_action_coverage": "3/3",
+        "mean_first_action_latency_ms": 1229.3333333333333,
+        "mean_seconds_per_task_observation": 26.76647619047619
+      },
+      "economics": {
+        "cost_coverage": "3/3",
+        "cost_covered_task_observations": 21,
+        "total_reported_cost_usd": 2.5103516,
+        "mean_reported_cost_usd_per_cell": 0.8367838666666666,
+        "reported_cost_usd_per_task_observation": 0.11954055238095238
+      },
+      "vendors": [
+        {
+          "vendor": "supabase",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": 21,
+          "strict_gid_oracle_total": 21,
+          "strict_gid_oracle_rate": 1,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 562096,
+            "mean_duration_ms": 187365.33333333334,
+            "median_duration_ms": 189292,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 1229.3333333333333,
+            "mean_seconds_per_task_observation": 26.76647619047619
+          },
+          "economics": {
+            "cost_coverage": "3/3",
+            "cost_covered_task_observations": 21,
+            "total_reported_cost_usd": 2.5103516,
+            "mean_reported_cost_usd_per_cell": 0.8367838666666666,
+            "reported_cost_usd_per_task_observation": 0.11954055238095238
+          }
+        }
+      ],
+      "cells": [
+        {
+          "vendor": "supabase",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-supabase-cli-extension-claude-20260814/supabase/trial-1",
+          "input_sha256": {
+            "model_audit": "5dc2b0f8d5361f76aecadee536c14cbb62c65c0976206b399cc1c795a79be3c7",
+            "executor_result": "7d31e360cd6765562d0526cb623caeba11d6530f544508f75ab835c38da6b51f",
+            "invoke_telemetry": "215aa798bfc61c1d74bcccc9ab20e21eb2179977acb6a8599b2abc55528631a1",
+            "transcript": "3730befa6b0db629da76df2ebe6a7625217a1d3672e4177066bf4d675da40b77",
+            "pack": "10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 129,
+            "emitted_events": 42,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 189292,
+            "first_action_latency_ms": 1243
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.8591740000000001,
+            "token_usage": {
+              "input_tokens": 40,
+              "output_tokens": 19593,
+              "cache_read_input_tokens": 1094380,
+              "cache_creation_input_tokens": 38446,
+              "total_tokens": 19633
+            }
+          }
+        },
+        {
+          "vendor": "supabase",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-supabase-cli-extension-claude-20260814/supabase/trial-2",
+          "input_sha256": {
+            "model_audit": "05da93cc1456695a2ffd612ad5106ff1904a0d8b1411106d2531fb9fd5612eeb",
+            "executor_result": "bcc8446b64932853e4f4df37ddee9889b0538765f86660bb565dcdb255fc2d9d",
+            "invoke_telemetry": "267c5201abbd3237bf89147b1ed55034ae588b827a236da3771bff33114d2ade",
+            "transcript": "3bf8b6bc5be5243b805b6191ccf78457d52c1d9d9a1c920092b07fa88820c70c",
+            "pack": "10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 124,
+            "emitted_events": 38,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 154506,
+            "first_action_latency_ms": 1147
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.7290987999999999,
+            "token_usage": {
+              "input_tokens": 38,
+              "output_tokens": 14859,
+              "cache_read_input_tokens": 1006196,
+              "cache_creation_input_tokens": 33012,
+              "total_tokens": 14897
+            }
+          }
+        },
+        {
+          "vendor": "supabase",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-supabase-cli-extension-claude-20260814/supabase/trial-3",
+          "input_sha256": {
+            "model_audit": "e1d2187005814f433424c5df9ccfa04d75777dbfda1edba68fc20019c1c1d8c6",
+            "executor_result": "431aceb0554ca1281bb78c82e973873218c9be536dde43cede868475e2830f81",
+            "invoke_telemetry": "91da67b1631ec97854bb22cfa62b17efb0c25f6d71f3c42db18aeb40597c0e71",
+            "transcript": "f515568f3ec1238f08f9946881b2abe11f73ab531a71b45231f450afdcb5f8ce",
+            "pack": "10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784"
+          },
+          "decoder": {
+            "id": "claude-code",
+            "version": 1,
+            "recognized_events": 167,
+            "emitted_events": 52,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "efficiency": {
+            "duration_ms": 218298,
+            "first_action_latency_ms": 1298
+          },
+          "economics": {
+            "source": "harness-reported",
+            "cost_usd": 0.9220787999999999,
+            "token_usage": {
+              "input_tokens": 42,
+              "output_tokens": 21021,
+              "cache_read_input_tokens": 1190516,
+              "cache_creation_input_tokens": 40554,
+              "total_tokens": 21063
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "core-opencode-glm52-local-comparative",
+      "track": "comparative-appendix",
+      "include_in_release_total": false,
+      "harness": "opencode",
+      "model": "openrouter/z-ai/glm-5.2",
+      "task_observations": 93,
+      "tasks_passed": 89,
+      "usability_rate": 0.956989247311828,
+      "discovery_cells": 15,
+      "discovery_rate": 1,
+      "ax_composite": 0.978021978021978,
+      "strict_gid_oracle_passed": null,
+      "strict_gid_oracle_total": null,
+      "strict_gid_oracle_rate": null,
+      "efficiency": {
+        "coverage": "15/15",
+        "total_duration_ms": 8822121,
+        "mean_duration_ms": 588141.4,
+        "median_duration_ms": 569491,
+        "first_action_coverage": "15/15",
+        "mean_first_action_latency_ms": 3338.133333333333,
+        "mean_seconds_per_task_observation": 94.86151612903225
+      },
+      "economics": {
+        "cost_coverage": "0/15",
+        "cost_covered_task_observations": 0,
+        "total_reported_cost_usd": null,
+        "mean_reported_cost_usd_per_cell": null,
+        "reported_cost_usd_per_task_observation": null
+      },
+      "vendors": [
+        {
+          "vendor": "cockroachdb",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": null,
+          "strict_gid_oracle_total": null,
+          "strict_gid_oracle_rate": null,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 1566843,
+            "mean_duration_ms": 522281,
+            "median_duration_ms": 502486,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 3075.6666666666665,
+            "mean_seconds_per_task_observation": 74.61157142857144
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "insforge",
+          "task_observations": 18,
+          "tasks_passed": 16,
+          "usability_rate": 0.8888888888888888,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 0.9411764705882353,
+          "strict_gid_oracle_passed": null,
+          "strict_gid_oracle_total": null,
+          "strict_gid_oracle_rate": null,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 1903753,
+            "mean_duration_ms": 634584.3333333334,
+            "median_duration_ms": 569491,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 2881.6666666666665,
+            "mean_seconds_per_task_observation": 105.76405555555556
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "neon",
+          "task_observations": 21,
+          "tasks_passed": 21,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": null,
+          "strict_gid_oracle_total": null,
+          "strict_gid_oracle_rate": null,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 1954487,
+            "mean_duration_ms": 651495.6666666666,
+            "median_duration_ms": 678801,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 3343,
+            "mean_seconds_per_task_observation": 93.07080952380953
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "nile",
+          "task_observations": 18,
+          "tasks_passed": 18,
+          "usability_rate": 1,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 1,
+          "strict_gid_oracle_passed": null,
+          "strict_gid_oracle_total": null,
+          "strict_gid_oracle_rate": null,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 1599781,
+            "mean_duration_ms": 533260.3333333334,
+            "median_duration_ms": 579647,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 3909,
+            "mean_seconds_per_task_observation": 88.87672222222221
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        },
+        {
+          "vendor": "turso",
+          "task_observations": 15,
+          "tasks_passed": 13,
+          "usability_rate": 0.8666666666666667,
+          "discovery_cells": 3,
+          "discovery_rate": 1,
+          "ax_composite": 0.9285714285714286,
+          "strict_gid_oracle_passed": null,
+          "strict_gid_oracle_total": null,
+          "strict_gid_oracle_rate": null,
+          "efficiency": {
+            "coverage": "3/3",
+            "total_duration_ms": 1797257,
+            "mean_duration_ms": 599085.6666666666,
+            "median_duration_ms": 589189,
+            "first_action_coverage": "3/3",
+            "mean_first_action_latency_ms": 3481.3333333333335,
+            "mean_seconds_per_task_observation": 119.81713333333333
+          },
+          "economics": {
+            "cost_coverage": "0/3",
+            "cost_covered_task_observations": 0,
+            "total_reported_cost_usd": null,
+            "mean_reported_cost_usd_per_cell": null,
+            "reported_cost_usd_per_task_observation": null
+          }
+        }
+      ],
+      "cells": [
+        {
+          "vendor": "cockroachdb",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813/cockroachdb/trial-1",
+          "input_sha256": {
+            "model_audit": "179bcf65b03cb19109ca284ea8c831fea582f066024de451839458557d7bf900",
+            "executor_result": "aab7ff8fe35d7ee36f25334a6a4e7e85e556b420c7dae365f6a040f106826b59",
+            "invoke_telemetry": "d77f09b307a9cdf11e88c0292bac4801d2bfd3974270e927e40cea12f14ee644",
+            "transcript": "a33d5b3bf68c13d63ee04de52e514e20d23e164066f1dcc48aa9d49b58a75b96",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 379,
+            "emitted_events": 234,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 502486,
+            "first_action_latency_ms": 3046
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 396440,
+              "output_tokens": 27810,
+              "reasoning_output_tokens": 12091,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 1054720,
+              "total_tokens": 1491061
+            }
+          }
+        },
+        {
+          "vendor": "cockroachdb",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813/cockroachdb/trial-2",
+          "input_sha256": {
+            "model_audit": "18a8ceac3d0d918d75dbda42d45b4edd2a681a978cad34660ab0cfbf49344eaf",
+            "executor_result": "d3ec647a268240361e597d65f3d6499f3b0ab0d26000259d4b3d9ec3833f9602",
+            "invoke_telemetry": "e6111b42610cf9c042942d7b4c4648d85fe5b254c39a9db28ecf22add1a5424d",
+            "transcript": "243aec2124aa5f886dc77d64459236f1061d74a741fcbe1a00394a18dd9fa324",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 341,
+            "emitted_events": 218,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 567185,
+            "first_action_latency_ms": 3126
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 618809,
+              "output_tokens": 34818,
+              "reasoning_output_tokens": 9109,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 657984,
+              "total_tokens": 1320720
+            }
+          }
+        },
+        {
+          "vendor": "cockroachdb",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r2/cockroachdb/trial-3",
+          "input_sha256": {
+            "model_audit": "9573bf05210e307a9568033498837f865bacca479adc7d2f1c84b05fa1c2c3ef",
+            "executor_result": "bc5b00a17ed12874c88b750a79ec2373c177754bba0286c790eab7de9d0ded13",
+            "invoke_telemetry": "3e8c04e3c2d91a6d9074a02d1b95dce5c715cef4c30e850abb2d7fc516e20cca",
+            "transcript": "9c3e25c0e7794bfafe878c5baff89f725334eb43d5abf3cce69e7c0c04de4aaa",
+            "pack": "cc2af4c543c3ea2a4caa77d7bc1ba6916f811bf6f9ce14c6ab088cf9e32ab835"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 364,
+            "emitted_events": 211,
+            "malformed_events": 1
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 497172,
+            "first_action_latency_ms": 3055
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 352196,
+              "output_tokens": 24903,
+              "reasoning_output_tokens": 20717,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 1086528,
+              "total_tokens": 1484344
+            }
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r3/insforge/trial-1",
+          "input_sha256": {
+            "model_audit": "46ac0c3a42e4c3df8489bb69473142f56ae50aa09eb02f9fff5203dfd018bdb6",
+            "executor_result": "6008e1511aeb53b73435da84363860c0daa8e50b0bc2232d200e534f154e5879",
+            "invoke_telemetry": "aab656ffc00ab7958c862e9ab95cf656e27243d57cb45e2364391a1a9cbba471",
+            "transcript": "561d846cddc7d559b2071cd3c4ef48e01e2e8613061bc462871a9cd150a244d4",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 263,
+            "emitted_events": 160,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 509515,
+            "first_action_latency_ms": 2745
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 234749,
+              "output_tokens": 18571,
+              "reasoning_output_tokens": 9867,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 770836,
+              "total_tokens": 1034023
+            }
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r3/insforge/trial-2",
+          "input_sha256": {
+            "model_audit": "6168214f9b2d3451a0e78a06ccc0d33b3e4b69edcf4af844f75909633a73f3bf",
+            "executor_result": "edaafe78924527e5941560cbb0840d10daa51cfbe7d6f93199182bd6598fc3af",
+            "invoke_telemetry": "5ad2de7125d4dcb258cf2e0b66f36eab00efacb40fa066621081d7db291eaa5d",
+            "transcript": "1b269d7dc650e4c8240a67fc629e354bc6656557319e6059a2b174dc909c947a",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 365,
+            "emitted_events": 250,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 6,
+            "rate": 0.8333333333333334
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 569491,
+            "first_action_latency_ms": 2910
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 408349,
+              "output_tokens": 32780,
+              "reasoning_output_tokens": 9497,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 858879,
+              "total_tokens": 1309505
+            }
+          }
+        },
+        {
+          "vendor": "insforge",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r4/insforge/trial-3",
+          "input_sha256": {
+            "model_audit": "cbe0b0e2f96d38f65738ddc55e2643e57c0293e047a506d0e358342511e9f2c0",
+            "executor_result": "eeb20bd3ed23d9515b07abeede0565d7e176b5698054f30f6c30fea722cee287",
+            "invoke_telemetry": "be5a62673539e2e8dba3aec1a4ad47bc7fe56920f4c16bc3c7d44e7f7a33b068",
+            "transcript": "22043b8b97e6eed0278d7605cca4b1aff5054797f758cff91c03b46be59687ed",
+            "pack": "105aa41ce13da3a2327384ad6a510e7517db0ef322f72b4aeeaf4a6121b1270a"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 268,
+            "emitted_events": 182,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 6,
+            "rate": 0.8333333333333334
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 824747,
+            "first_action_latency_ms": 2990
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 236852,
+              "output_tokens": 16514,
+              "reasoning_output_tokens": 10821,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 632600,
+              "total_tokens": 896787
+            }
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r2/neon/trial-1",
+          "input_sha256": {
+            "model_audit": "63833101a321bb403eb04058532ec07fa6f1f7485ce02dd51778cb215d121000",
+            "executor_result": "e80c8d4955c32c1aee1f3de053a4f617dfc9e65e595de0b3c329507c6cb763d1",
+            "invoke_telemetry": "df250412528c4c006ce2c00f9a35654344ea674a02090f54ae01f12b668f32a3",
+            "transcript": "63e7cbd15ff9df6e7f018509fc9665b712ab23f6f2b85e95f1299a5601b31b6f",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 339,
+            "emitted_events": 206,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 678801,
+            "first_action_latency_ms": 3592
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 544663,
+              "output_tokens": 34814,
+              "reasoning_output_tokens": 15983,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 620096,
+              "total_tokens": 1215556
+            }
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r2/neon/trial-2",
+          "input_sha256": {
+            "model_audit": "5709fa84cac40c243e1d7cc300fa1d78c5fc1ee7677fef1def14137a0d7e3a57",
+            "executor_result": "f187ae4b0b774e8b6f463ed8bd6470535f7fdd67c7c0e38cfa5e89394d515f76",
+            "invoke_telemetry": "7ae539db5330af76a5ab1704d710b00b434f7acb81ea615f81a41536cf1aec23",
+            "transcript": "8fa3362e1d2ccdf451634f2cc43e0b6f5ae34e3d531cef3b05ac20b2c3036f2f",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 294,
+            "emitted_events": 196,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 408257,
+            "first_action_latency_ms": 2832
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 310930,
+              "output_tokens": 20814,
+              "reasoning_output_tokens": 11706,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 563573,
+              "total_tokens": 907023
+            }
+          }
+        },
+        {
+          "vendor": "neon",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r2/neon/trial-3",
+          "input_sha256": {
+            "model_audit": "6cb2fa7f6f87333c575db082121adb976fd5251a85b6c637e63212f254d1f50b",
+            "executor_result": "19ce9a1e3d23925992a4847f7862b189e0589430da103f919ca6e3e50063a924",
+            "invoke_telemetry": "3ba3a07f2bfd300392cf225de4d878f3149cce303b49514c950ff6cca93b7272",
+            "transcript": "29bc11f71750b3ca2c4407cd23eddaa20c9e0cf3c0d806131ab38de57620aac8",
+            "pack": "a338609e1e1019c03b88a098c1243ff0edf3bd43214d0ec467d232087f47b249"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 324,
+            "emitted_events": 204,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 7,
+            "total": 7,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 867429,
+            "first_action_latency_ms": 3605
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 294363,
+              "output_tokens": 27115,
+              "reasoning_output_tokens": 9707,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 731648,
+              "total_tokens": 1062833
+            }
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r4/nile/trial-1",
+          "input_sha256": {
+            "model_audit": "7a362b52b4223c5fec540d23d243fafee249c9e551c5a2338b6c5d4241c1513d",
+            "executor_result": "7b538b6c7990fb7b2fe6664757461490158382ae7583b2c14864e7aef04aca32",
+            "invoke_telemetry": "9a7d24da07f3d70bedb89687b6378453af56c1a0daa8b561bcc6f2925f1db8c4",
+            "transcript": "637757c0f789ea3fa454a42b8b9e5b7ccb6413b85585eebdb122ffdaf0a39ea1",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 273,
+            "emitted_events": 162,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 579647,
+            "first_action_latency_ms": 4887
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 103234,
+              "output_tokens": 15201,
+              "reasoning_output_tokens": 8994,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 770866,
+              "total_tokens": 898295
+            }
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r4/nile/trial-2",
+          "input_sha256": {
+            "model_audit": "6e57fc3fad85ffedf93762d7ab0eb3cbe9be2f76746990b036fe5e2ae28ee6ce",
+            "executor_result": "5f17b84fb493508542f6b591e323bd7539867de4eaf379b64bff56a03fb2ceb9",
+            "invoke_telemetry": "174a7c8917f0956aa2395a4923910a97af510ee2bf7eb442365db9c637a254c2",
+            "transcript": "945f408052e6b6d5e6706833a2e7e324a604991e3ce17fabe90f8a721286d0a2",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 229,
+            "emitted_events": 148,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 407466,
+            "first_action_latency_ms": 3491
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 102353,
+              "output_tokens": 13643,
+              "reasoning_output_tokens": 7655,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 596817,
+              "total_tokens": 720468
+            }
+          }
+        },
+        {
+          "vendor": "nile",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r4/nile/trial-3",
+          "input_sha256": {
+            "model_audit": "9940a4195bfe56c7ac202c4058a010d306de3ec4c2cc2dede1b4248b592314ba",
+            "executor_result": "39357ce527fcbe3fe5bcd47a62f06d7e8a981af3e9c1892da76401e3628ce5a8",
+            "invoke_telemetry": "fd7b3e3504a61f221406a525489e06a83c8ea887025149f151cfe06270f8ce20",
+            "transcript": "5ecad20e75174e178b7fbe6617ff53d69cd4a63459f577bddf478815806a09b7",
+            "pack": "7e96a6b226d08a1d46c79db51a08dfc7257cd508377df68248517eac0dd7e829"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 287,
+            "emitted_events": 186,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 6,
+            "total": 6,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 612668,
+            "first_action_latency_ms": 3349
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 201986,
+              "output_tokens": 18946,
+              "reasoning_output_tokens": 10203,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 732356,
+              "total_tokens": 963491
+            }
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 1,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r5/turso/trial-1",
+          "input_sha256": {
+            "model_audit": "e0f5349da0e57f2d3f04c0db23fd8faff63ecfa5363a8638722aea6f73f685a3",
+            "executor_result": "52fe9a50a13ee6eff091c632f389a549e6451b3d5830d651b8e67ebb5d7affc8",
+            "invoke_telemetry": "0cbd2d4189390f80e130d1907e2a4067a33af743c1748dc60a3443aa54b6ac60",
+            "transcript": "1d559bbb158e2e6d6f027fc9c2584c4a1019ca16237feec3e965ef95dec37eec",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 200,
+            "emitted_events": 90,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 1,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 479649,
+            "first_action_latency_ms": 2848
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 230053,
+              "output_tokens": 24168,
+              "reasoning_output_tokens": 16769,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 624299,
+              "total_tokens": 895289
+            }
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 2,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r5/turso/trial-2",
+          "input_sha256": {
+            "model_audit": "f3ab51b4bd8a22e085b1c5821c62d7885d18a7d03ae8f7dccf1726b1a34a8c7d",
+            "executor_result": "ff8c2f8ab872294e496486e67dbd7ccf40486028feda1a587c656aec8613b84c",
+            "invoke_telemetry": "63c708786b9124a6ec8da16b50a9e8ee930a9ab47fb17aec4b19890027cb4c86",
+            "transcript": "41d9c2f1b3155af65b1488c2e1d9e1a02693e5dbe02663bf74a3bd3efac2952f",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 181,
+            "emitted_events": 62,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 3,
+            "total": 5,
+            "rate": 0.6
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 0,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 589189,
+            "first_action_latency_ms": 3869
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 139245,
+              "output_tokens": 14676,
+              "reasoning_output_tokens": 8920,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 628672,
+              "total_tokens": 791513
+            }
+          }
+        },
+        {
+          "vendor": "turso",
+          "trial": 3,
+          "artifact_dir": "results/daeb-v2-production-frozen-20260813-r5/turso/trial-3",
+          "input_sha256": {
+            "model_audit": "86f69792acb7e42b0cf01746569d8006f923e6b80886d69949e5d829274bf48d",
+            "executor_result": "b84df281ce0204712f87f1ff121e981d8adeeff013da73e864b90a65a9edabe5",
+            "invoke_telemetry": "1b3ec064ee60c33cb358690320ef6de3e70a2dfd7206106cfb22dd51de30daef",
+            "transcript": "878c8fab59ec8e45a7f748fea9d7a203ec2384bdde46a805f96467d7e809de60",
+            "pack": "8317e10801d9be5250b4f434cc8df4097e89b42e8feebd7aab10981fd744eb74"
+          },
+          "decoder": {
+            "id": "opencode",
+            "version": 1,
+            "recognized_events": 206,
+            "emitted_events": 74,
+            "malformed_events": 0
+          },
+          "usability": {
+            "passed": 5,
+            "total": 5,
+            "rate": 1
+          },
+          "discovery": {
+            "source": "observed",
+            "score": 1,
+            "hops": 2,
+            "signals": {
+              "official": true,
+              "canonical": true,
+              "misled": true,
+              "auth": true
+            }
+          },
+          "strict": null,
+          "efficiency": {
+            "duration_ms": 728419,
+            "first_action_latency_ms": 3727
+          },
+          "economics": {
+            "source": "unavailable",
+            "cost_usd": null,
+            "token_usage": {
+              "input_tokens": 171697,
+              "output_tokens": 14654,
+              "reasoning_output_tokens": 17360,
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 705832,
+              "total_tokens": 909543
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "publication_boundary": {
+    "official_hosted_trusted": false,
+    "note": "Observed discovery is reconstructed from retained local transcripts; this scorecard does not upgrade the trust level of the underlying runs."
+  }
+}

@@ -1,0 +1,41 @@
+schema: ax.daeb-v2-production-source/v1
+suite: DAEB-2-CLI-Production
+vendors:
+  - cockroachdb
+  - insforge
+  - neon
+  - nile
+  - turso
+canonical_task_ids:
+  - db-T01-access-control
+  - db-T02-evolve-schema
+  - db-T03-inspect-schema
+  - db-T04-query-records
+  - db-T05-vector-search
+  - db-T06-write-records
+  - db-T07-full-text-search
+admitted_tuple_count: 31
+structural_na_tuple_count: 4
+extensions:
+  - id: supabase-cli
+    vendor: supabase
+    surface: cli
+    pack_path: extensions/supabase-cli/pack.yaml
+    approval_path: extensions/supabase-cli/pack.approval.json
+    support_matrix_path: extensions/supabase-cli/support-matrix.yaml
+    admitted_tuple_count: 7
+    structural_na_tuple_count: 0
+    api_tuple_count: 0
+    model_trial_observations: 42
+    policy: additive-local-extension; excluded from the core five-vendor score
+common_sql_task_ids:
+  - db-T02-evolve-schema
+  - db-T03-inspect-schema
+  - db-T04-query-records
+  - db-T06-write-records
+common_sql_tuple_count: 20
+source: ../rc0-semantic-audit.yaml
+publication_policy: Every admitted tuple requires independent documentation,
+  oracle, cleanup, hosted three-trial evidence, and final approval. Cross-vendor
+  scoring is limited to the 20 common-SQL tuples; other admitted tuples are
+  published per vendor without being summed into that score.

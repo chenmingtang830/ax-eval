@@ -1,0 +1,143 @@
+schema: ax.daeb-v2-witness-run-matrix/v1
+benchmark: DAEB-2
+source_version: daeb-1-v1
+generated_at: 2026-08-12T15:52:07.966Z
+mode: cli-only
+task_source_status: v1-intent+official-cli-doc-refresh+target-capability-exclusions
+excluded_vendors:
+  - supabase
+stage: deterministic-witness
+harnesses: []
+trials: 1
+cells:
+  - vendor: cockroachdb
+    task_id: db-T01-access-control
+    surface: cli
+    stage: deterministic-witness
+  - vendor: cockroachdb
+    task_id: db-T02-evolve-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: cockroachdb
+    task_id: db-T03-inspect-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: cockroachdb
+    task_id: db-T04-query-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: cockroachdb
+    task_id: db-T05-vector-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: cockroachdb
+    task_id: db-T06-write-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: cockroachdb
+    task_id: db-T07-full-text-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: insforge
+    task_id: db-T01-access-control
+    surface: cli
+    stage: deterministic-witness
+  - vendor: insforge
+    task_id: db-T02-evolve-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: insforge
+    task_id: db-T04-query-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: insforge
+    task_id: db-T05-vector-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: insforge
+    task_id: db-T06-write-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T01-access-control
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T02-evolve-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T03-inspect-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T04-query-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T05-vector-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T06-write-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: neon
+    task_id: db-T07-full-text-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: nile
+    task_id: db-T02-evolve-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: nile
+    task_id: db-T03-inspect-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: nile
+    task_id: db-T04-query-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: nile
+    task_id: db-T05-vector-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: nile
+    task_id: db-T06-write-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: nile
+    task_id: db-T07-full-text-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: turso
+    task_id: db-T02-evolve-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: turso
+    task_id: db-T03-inspect-schema
+    surface: cli
+    stage: deterministic-witness
+  - vendor: turso
+    task_id: db-T04-query-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: turso
+    task_id: db-T05-vector-search
+    surface: cli
+    stage: deterministic-witness
+  - vendor: turso
+    task_id: db-T06-write-records
+    surface: cli
+    stage: deterministic-witness
+  - vendor: insforge
+    task_id: db-T03-inspect-schema
+    surface: cli
+    stage: deterministic-witness
+notes:
+  - This is not a model evaluation matrix. Each cell must pass a deterministic
+    witness before pack composition.
+  - Blocked tuples are intentionally absent. Empty vendor/surface combinations
+    are never expanded.
+  - Draft CLI packs are refreshed from v1 task intent with the official-doc CLI
+    contract; they are not reviewed or publication-ready.

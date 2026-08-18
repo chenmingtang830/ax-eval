@@ -1,0 +1,804 @@
+name: insforge
+version: 2.1-draft
+standard_set_version: daeb-2-cli-v2-1-draft
+run_id: daeb21-draft-insforge
+generated_by: v2-1-pack-readiness-derivation
+generator:
+  harness: claude-code
+  model: deterministic
+  effort: high
+  prompt_version: compose-pack-cli-doc-refresh-v1
+  source_docs:
+    - https://insforge.dev/blog/introducing-insforge-cli
+    - https://www.npmjs.com/package/@insforge/cli
+    - https://insforge-468ccf39.mintlify.app/core-concepts/database/migrations
+    - https://docs.insforge.dev/core-concepts/database/pgvector
+auth_method: sql-connection
+api_style: rest
+auth:
+  type: none
+  env: ""
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope: []
+sql_conn:
+  dialect: postgres
+  connection_string_env: INSFORGE_CONNECTION_STRING
+surfaces:
+  cli:
+    bin: psql
+    install: Install PostgreSQL client tools (psql).
+    docs_url: https://insforge.dev/blog/introducing-insforge-cli
+    auth:
+      kind: inherit
+      token_env_aliases: []
+      instructions: Use INSFORGE_CONNECTION_STRING with psql for PostgreSQL data-plane
+        operations. The management API is out of scope.
+base_url: ""
+headers: {}
+site_url: https://insforge.dev
+openapi_url: ""
+docs_urls:
+  - https://insforge.dev/blog/introducing-insforge-cli
+  - https://www.npmjs.com/package/@insforge/cli
+  - https://insforge-468ccf39.mintlify.app/core-concepts/database/migrations
+  - https://docs.insforge.dev/core-concepts/database/pgvector
+static:
+  site_url: https://insforge.dev
+  docs_urls:
+    - https://insforge.dev/blog/introducing-insforge-cli
+    - https://www.npmjs.com/package/@insforge/cli
+    - https://insforge-468ccf39.mintlify.app/core-concepts/database/migrations
+    - https://docs.insforge.dev/core-concepts/database/pgvector
+  checks: []
+discovery:
+  product: Insforge
+  goal: "You are about to operate Insforge programmatically on its documented CLI
+    data plane. First work out, from scratch, how Insforge's public agent-facing
+    surfaces work: base URL (or CLI entrypoint), authentication, and at least
+    one documented read or write call you can use to confirm the surface is
+    live. You are NOT given any endpoint, base URL, or documentation link; find
+    them yourself. DAEB-2 is CLI-only: use the declared CLI and do not call the
+    management API."
+  official_domains:
+    - insforge.dev
+    - docs.insforge.dev
+  canonical_endpoint: psql <INSFORGE_CONNECTION_STRING>
+  deprecated_markers: []
+  auth_scheme: SQL connection string via the declared CLI
+tasks:
+  - id: db-T17-cli-session-discovery
+    title: "T17: Discover and verify an authenticated CLI session"
+    prompt: >-
+      From a fresh family session, discover the vendor's documented command-line
+      entrypoint and authentication path.
+
+
+      Using the provisioned sandbox credentials, create a task-scoped relation
+      named `axarena_session_probe_{ns}`
+
+
+      with exactly one marker `session_{ns}` and the authenticated principal
+      observed by the CLI session.
+
+
+      Start a second fresh CLI process and read the marker back. Report the
+      discovered surface, auth method,
+
+
+      relation name, and marker. Never print credentials, call a management API,
+      or clean up the relation.
+
+
+      The evaluator will independently read the relation after the task.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: authenticated CLI session created exactly one marker row
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_session_probe_{ns}" WHERE
+          marker = 'session_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: marker row records a non-empty authenticated principal
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_session_probe_{ns}" WHERE
+          marker = 'session_{ns}' AND principal <> ''
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: access-auth-discovery
+    challenge_tags:
+      - surface-ambiguity
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/cli-session-discovery
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T21-cli-principal-continuity
+    title: "T21: Verify authenticated principal continuity across CLI sessions"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_principal_probe_{ns}` with one marker `principal_{ns}` and
+      the non-empty authenticated principal returned by the session. Start a
+      second fresh CLI process, read the row back, and report the same principal
+      without printing credentials or cleaning up.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: principal continuity created exactly one marker row
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_principal_probe_{ns}"
+          WHERE marker = 'principal_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: principal continuity records a non-empty authenticated principal
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_principal_probe_{ns}"
+          WHERE marker = 'principal_{ns}' AND principal <> ''
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: access-auth-discovery
+    challenge_tags:
+      - surface-ambiguity
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/cli-principal-continuity
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T18-constraint-preservation
+    title: "T18: Preserve a constraint under a rejected write"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_constraint_probe_{ns}` with a primary key and a unique
+      marker constraint. Insert exactly one marker `constraint_{ns}`, then
+      deliberately attempt the same marker again using the vendor's documented
+      conflict/rejection path. Leave the original row intact and report the
+      relation and rejected-write outcome; do not disable or replace the
+      constraint.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: duplicate marker did not create a second row
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_constraint_probe_{ns}"
+          WHERE marker = 'constraint_{ns}'
+      - type: roundtrip
+        expected: 2
+        description: primary and unique constraints remain declared
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM
+          information_schema.table_constraints WHERE table_schema='public' AND
+          table_name='axarena_constraint_probe_{ns}' AND constraint_type IN
+          ('PRIMARY KEY','UNIQUE')
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/constraint-preservation
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T19-transactional-record-recovery
+    title: "T19: Recover a record after a rolled-back transaction"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_txn_probe_{ns}` with exactly one column, `marker TEXT PRIMARY
+      KEY`. Start a transaction that inserts
+      `rollback_{ns}` and roll it back, then commit exactly one `committed_{ns}`
+      row in a separate transaction. Report the observed rollback and commit
+      behavior without cleaning up the relation.
+    oracles:
+      - type: roundtrip
+        expected: 0
+        description: rolled-back marker is absent
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_txn_probe_{ns}" WHERE
+          marker = 'rollback_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: committed marker is present
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_txn_probe_{ns}" WHERE
+          marker = 'committed_{ns}'
+    difficulty: L4
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/transactional-record-recovery
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T20-aggregate-query
+    title: "T20: Aggregate a filtered record set"
+    prompt: "From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_aggregate_probe_{ns}` with three rows: two `active` rows
+      and one `inactive` row. Run a filtered aggregate that counts only the
+      active rows and report the relation and count without cleaning it up."
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: aggregate relation contains three rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_aggregate_probe_{ns}"
+      - type: roundtrip
+        expected: 2
+        description: filtered aggregate counts two active rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_aggregate_probe_{ns}"
+          WHERE status = 'active'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/aggregate-query
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T22-negative-query-verification
+    title: "T22: Verify a Negative Query Without Losing Existing Records"
+    prompt: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_negative_query_probe_{ns}` with two marker rows. Run a
+      query for a marker that does not exist, confirm the negative result, then
+      report the relation and the preserved record count without cleaning up.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: negative-query relation preserves both original rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_negative_query_probe_{ns}"
+      - type: roundtrip
+        expected: 0
+        description: negative predicate returns zero rows
+        assertField: 0.value
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS value FROM "axarena_negative_query_probe_{ns}"
+          WHERE marker = 'absent_{ns}'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/negative-query-verification
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T07-backup-and-restore
+    title: "T07: Produce a backup, snapshot, or export artifact"
+    prompt: "Structural N/A or not admitted for insforge: this candidate task is not
+      supported on the documented CLI surface and must not be attempted."
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    oracles:
+      - type: na
+        description: Structural N/A or non-admitted CLI tuple for insforge; see the V2.1
+          support matrix.
+    depends_on: []
+    trace: []
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/backup-and-restore
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T02-evolve-schema
+    title: "T02: Apply a schema evolution"
+    prompt: >-
+      In the task-scoped container `axarena_migrate_{ns}`, first establish a
+      baseline schema containing a `title` field (create it if it does not
+      already exist). Then apply an idiomatic schema evolution that adds a new
+      `status` field without recreating or replacing the container. Confirm the
+      evolved shape is visible through the vendor's schema or metadata surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through the declared SQL command-line path, double-quote
+      table, function, policy, index, trigger, schema, and other SQL identifiers
+      that include canonical task names or `{ns}`. Preserve the exact canonical
+      names expected by the verifier; do not replace hyphens with underscores
+      for SQL-backed vendors. Use parameterized values for marker strings and
+      row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
+
+      DAEB-2 CLI refresh contract: Use only the declared CLI/data-plane surface
+      for this task; management REST/API calls are out of scope. Use psql with
+      INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
+      output non-interactive and never print credentials. The task is not
+      admitted by a successful command alone: setup, mutation, independent
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
+
+
+      DAEB-2 complete production source contract: this task is an independently
+      reported CLI tuple. Do not substitute a management API or a local database
+      process.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: title remains visible and status exists after schema evolution
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND
+          column_name IN ('title', 'status')
+    difficulty: L3
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/evolve-schema
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: true
+  - id: db-T09-inspect-schema
+    title: "T09: Inspect container metadata"
+    prompt: "Structural N/A or not admitted for insforge: this candidate task is not
+      supported on the documented CLI surface and must not be attempted."
+    difficulty: L1
+    allowed_surfaces: []
+    na: true
+    oracles:
+      - type: na
+        description: Structural N/A or non-admitted CLI tuple for insforge; see the V2.1
+          support matrix.
+    depends_on: []
+    trace: []
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/inspect-schema
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T04-query-records
+    title: "T04: Filter and read matching records"
+    prompt: >-
+      Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through the declared SQL command-line path, double-quote
+      table, function, policy, index, trigger, schema, and other SQL identifiers
+      that include canonical task names or `{ns}`. Preserve the exact canonical
+      names expected by the verifier; do not replace hyphens with underscores
+      for SQL-backed vendors. Use parameterized values for marker strings and
+      row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
+
+      DAEB-2 CLI refresh contract: Use only the declared CLI/data-plane surface
+      for this task; management REST/API calls are out of scope. Use psql with
+      INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
+      output non-interactive and never print credentials. The task is not
+      admitted by a successful command alone: setup, mutation, independent
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
+
+
+      DAEB-2 complete production source contract: this task is an independently
+      reported CLI tuple. Do not substitute a management API or a local database
+      process.
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: query container contains exactly the three requested records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
+      - type: roundtrip
+        expected: 2
+        description: filtered read returns exactly two active records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active'
+      - type: roundtrip
+        expected: 2
+        description: the active set is alpha and gamma
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/query-records
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: true
+  - id: db-T11-vector-search
+    title: "T11: Create a vector-enabled dataset and query it"
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through the declared SQL command-line path, double-quote
+      table, function, policy, index, trigger, schema, and other SQL identifiers
+      that include canonical task names or `{ns}`. Preserve the exact canonical
+      names expected by the verifier; do not replace hyphens with underscores
+      for SQL-backed vendors. Use parameterized values for marker strings and
+      row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
+      DAEB-2 CLI refresh contract: Use only the declared CLI/data-plane surface
+      for this task; management REST/API calls are out of scope. Use psql with
+      INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
+      output non-interactive and never print credentials. The task is not
+      admitted by a successful command alone: setup, mutation, independent
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
+
+
+      DAEB-2 complete production source contract: this task is an independently
+      reported CLI tuple. Do not substitute a management API or a local database
+      process.
+    oracles:
+      - type: roundtrip
+        expected: alpha_{ns}
+        description: nearest vector search ranks alpha first
+        assertField: 0.label
+        sqlDialect: postgres
+        sqlQuery: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
+          '[1,0,0]' LIMIT 1
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/vector-search
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T06-write-records
+    title: "T06: Create, update, and delete one record lifecycle"
+    prompt: >-
+      Using a container named `axarena_write_items_{ns}`, create one record with
+      immutable `record_id=record_{ns}` and label `draft_{ns}`, update that same
+      record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through the declared SQL command-line path, double-quote
+      table, function, policy, index, trigger, schema, and other SQL identifiers
+      that include canonical task names or `{ns}`. Preserve the exact canonical
+      names expected by the verifier; do not replace hyphens with underscores
+      for SQL-backed vendors. Use parameterized values for marker strings and
+      row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
+      SQL write lifecycle contract: before reporting this task, read back the
+      target table and ensure the postcondition is exact: one row labeled
+      `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
+      `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
+      fix only this run-scoped table before reporting the gid.
+
+
+      DAEB-2 CLI refresh contract: Use only the declared CLI/data-plane surface
+      for this task; management REST/API calls are out of scope. Use psql with
+      INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
+      output non-interactive and never print credentials. The task is not
+      admitted by a successful command alone: setup, mutation, independent
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
+
+
+      DAEB-2 complete production source contract: this task is an independently
+      reported CLI tuple. Do not substitute a management API or a local database
+      process.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: the original record identity survives with the final label
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          record_id = 'record_{ns}' AND label = 'final_{ns}'
+      - type: roundtrip
+        expected: 0
+        description: draft label no longer remains after update
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'draft_{ns}'
+      - type: roundtrip
+        expected: 0
+        description: throwaway record was deleted
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'delete_me_{ns}'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/write-records
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: true
+  - id: db-T13-change-data-capture
+    title: "T13: Emit one observable change event"
+    prompt: "Structural N/A or not admitted for insforge: this candidate task is not
+      supported on the documented CLI surface and must not be attempted."
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    oracles:
+      - type: na
+        description: Structural N/A or non-admitted CLI tuple for insforge; see the V2.1
+          support matrix.
+    depends_on: []
+    trace: []
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/change-data-capture
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T14-full-text-search
+    title: "T14: Create a searchable text dataset and query it"
+    prompt: "Structural N/A or not admitted for insforge: this candidate task is not
+      supported on the documented CLI surface and must not be attempted."
+    difficulty: L2
+    allowed_surfaces: []
+    na: true
+    oracles:
+      - type: na
+        description: Structural N/A or non-admitted CLI tuple for insforge; see the V2.1
+          support matrix.
+    depends_on: []
+    trace: []
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/full-text-search
+    supported_vendors:
+      - Cockroachdb
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T15-database-branching
+    title: "T15: Database/Backend Branching"
+    prompt: "Structural N/A or not admitted for insforge: this candidate task is not
+      supported on the documented CLI surface and must not be attempted."
+    difficulty: L1
+    allowed_surfaces: []
+    na: true
+    oracles:
+      - type: na
+        description: Structural N/A or non-admitted CLI tuple for insforge; see the V2.1
+          support matrix.
+    depends_on: []
+    trace: []
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/database-branching
+    supported_vendors:
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T16-data-integrity-and-transactions
+    title: "T16: Enforce one integrity or atomicity rule"
+    prompt: "Structural N/A or not admitted for insforge: this candidate task is not
+      supported on the documented CLI surface and must not be attempted."
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    oracles:
+      - type: na
+        description: Structural N/A or non-admitted CLI tuple for insforge; see the V2.1
+          support matrix.
+    depends_on: []
+    trace: []
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/data-integrity-and-transactions
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false

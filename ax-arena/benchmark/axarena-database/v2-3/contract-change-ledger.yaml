@@ -1,0 +1,29 @@
+schema: ax.daeb-v2-3-contract-change-ledger/v1
+status: pre-freeze
+changes:
+  - id: C01-turso-verifier-admission
+    tasks: [db-T18-constraint-preservation, db-T19-transactional-record-recovery, db-T20-aggregate-query]
+    vendor: turso
+    prior: admitted
+    next: structural-na
+    reason: >-
+      Predicate replay showed the candidate pack cannot run its declared SQL
+      oracle because no sql_conn is declared. This is an oracle-admission
+      defect, not a model or vendor failure.
+    evidence:
+      - results/v23-gemini-3.7-flash-20260816-predicate-r2/cells/turso/db-T19-transactional-record-recovery/verification.json
+  - id: C02-explicit-relational-schema
+    tasks: [db-T19-transactional-record-recovery]
+    vendors: [cockroachdb, insforge, neon, nile, supabase]
+    prior: task prose did not declare all columns queried by the independent oracle
+    next: task prose declares the minimal relation schema before mutation
+    reason: >-
+      Nile T19 replay created a valid-looking relation without a marker column,
+      while the oracle correctly queried marker. The task contract must state
+      its required state schema rather than require agents to infer it.
+    evidence:
+      - results/v23-gemini-3.7-flash-20260816-predicate-r2/cells/nile/db-T19-transactional-record-recovery/verification.json
+policy: >-
+  No pre-change observation is pooled with a post-change task contract. Each
+  changed tuple requires fresh provider-pinned replay and human pack review
+  before the suite can be frozen.

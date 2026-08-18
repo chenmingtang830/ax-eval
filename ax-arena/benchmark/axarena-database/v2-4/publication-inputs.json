@@ -1,0 +1,125 @@
+{
+  "schema": "ax.daeb-v2-4-publication-inputs/v1",
+  "formal": false,
+  "core_vendors": [
+    "cockroachdb",
+    "insforge",
+    "neon",
+    "nile",
+    "supabase"
+  ],
+  "models": [
+    {
+      "model": "google/gemini-3.7-flash-20260813",
+      "provider": "google-vertex",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-frozen-gemini-3.7-flash-20260816-atomic-t1-r2-audit-v24",
+          "j01_audit_root": "results/v24-frozen-gemini-3.7-flash-20260817-j01-t1-r5-upstream-replacement-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-frozen-gemini-3.7-flash-20260816-atomic-t2-r1-audit-v24",
+          "j01_audit_root": "results/v24-frozen-gemini-3.7-flash-20260817-j01-t2-r4-audit-v24"
+        }
+      ]
+    },
+    {
+      "model": "qwen/qwen3.8-27b-20260814",
+      "provider": "akashml",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-frozen-qwen-3.8-27b-20260816-atomic-t1-r2-audit-v24",
+          "j01_audit_root": "results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-frozen-qwen-3.8-27b-20260817-atomic-t2-r3-audit-v24",
+          "j01_audit_root": "results/v24-frozen-qwen-3.8-27b-20260817-j01-t2-r2-audit-v24"
+        }
+      ]
+    },
+    {
+      "model": "z-ai/glm-5.2-20260616",
+      "provider": "z-ai",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-frozen-glm-5.2-20260817-atomic-t1-r1-audit-v24",
+          "j01_audit_root": "results/v24-frozen-glm-5.2-20260817-j01-t1-r1-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-frozen-glm-5.2-20260817-atomic-t2-r1-audit-v24",
+          "j01_audit_root": "results/v24-frozen-glm-5.2-20260817-j01-t2-r1-audit-v24"
+        }
+      ]
+    },
+    {
+      "model": "meta/muse-spark-1.2",
+      "provider": "meta",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-frozen-muse-spark-1.2-20260817-atomic-t1-r1-audit-v24",
+          "j01_audit_root": "results/v24-frozen-muse-spark-1.2-20260817-j01-t1-r1-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-frozen-muse-spark-1.2-20260817-atomic-t2-r1-audit-v24",
+          "j01_audit_root": "results/v24-frozen-muse-spark-1.2-20260817-j01-t2-final-audit-v24"
+        }
+      ]
+    },
+    {
+      "model": "thinkingmachines/inkling-small",
+      "provider": "deepinfra",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-five-vendor-inkling-20260817-atomic-t1-r2-audit-v24",
+          "j01_audit_root": "results/v24-five-vendor-inkling-20260817-j01-t1-final-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-five-vendor-inkling-20260817-atomic-t2-r1-audit-v24",
+          "j01_audit_root": "results/v24-five-vendor-inkling-20260817-j01-t2-r1-audit-v24"
+        }
+      ]
+    },
+    {
+      "model": "openai/gpt-5.6-luna-20260709",
+      "provider": "openai",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-five-vendor-luna-20260817-atomic-t1-r2-audit-v24",
+          "j01_audit_root": "results/v24-five-vendor-luna-20260817-j01-t1-r1-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-five-vendor-luna-20260817-atomic-t2-r1-audit-v24",
+          "j01_audit_root": "results/v24-five-vendor-luna-20260817-j01-t2-r1-audit-v24"
+        }
+      ]
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash-20260731",
+      "provider": "coreweave",
+      "trials": [
+        {
+          "trial": 1,
+          "atomic_audit_root": "results/v24-five-vendor-deepseek-coreweave-20260817-atomic-t1-r1-audit-v24",
+          "j01_audit_root": "results/v24-five-vendor-deepseek-coreweave-20260817-j01-t1-r1-audit-v24"
+        },
+        {
+          "trial": 2,
+          "atomic_audit_root": "results/v24-five-vendor-deepseek-coreweave-20260817-atomic-t2-r1-audit-v24",
+          "j01_audit_root": "results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1-audit-v24"
+        }
+      ]
+    }
+  ]
+}

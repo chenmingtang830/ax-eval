@@ -1,0 +1,12 @@
+{
+  "schema": "ax.daeb-v2-4-five-vendor-core-approval/v1",
+  "approved_at": "2026-08-17T00:00:00.000Z",
+  "scope": "Five-vendor core admission policy for future provider-attested open-weight model trials.",
+  "approved_by": "maintainer",
+  "invariants": [
+    "CockroachDB, InsForge, Neon, Nile, and Supabase are the only core denominators.",
+    "Turso remains historical compatibility/J01 appendix only and receives no new cells.",
+    "Every admitted model has a no-write provider-pinning attestation before formal execution.",
+    "Every core cell is single-attempt, provider-pinned, fallback-forbidden, and final-audited."
+  ]
+}

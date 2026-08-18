@@ -1,0 +1,44 @@
+schema: ax.suite-methodology/v1
+ontology:
+  task: A single CLI benchmark problem with fixed intent and success criteria.
+  trial: One attempt at a task under an isolated namespaced environment.
+  grader: Independent read-back logic over the live database state.
+  transcript: Behavior evidence from the agent run, including CLI tool use.
+  outcome: Final world state after the agent attempt and before reset.
+  support_decision: A recorded judgment that a vendor/task CLI tuple is structurally executable.
+  selection_decision: A recorded judgment that the canonical task remains in the v2 CLI suite.
+  suite: The frozen seven-task CLI task bank for the database category.
+  publication_bundle: The sealed artifact set tying source, evidence, and results together.
+static_ax:
+  label: Discoverability & Readiness
+  dimensions:
+    - discoverability
+    - content quality
+    - capability exposure
+    - protocol/access readiness
+  notes:
+    - Static readiness is reported separately and never changes behavioral pass rates.
+behavioral:
+  label: Usability Canonical Suite
+  source_of_truth: Verified world state read back from the live product
+  notes:
+    - Only deterministic provider-aware oracle outcomes enter the usability denominator.
+extraction_requirements:
+  - Use official vendor documentation for the CLI/data-plane contract.
+  - Persist every support decision with explicit surface and exclusion evidence.
+  - Keep control-plane and vendor-native capability claims separate from portable SQL outcomes.
+surface_scope:
+  - cli
+min_vendor_coverage_pct: 0.75
+target_task_count: 7
+verifiability_requirement: Every admitted executable tuple must have deterministic independent read-back and exact-scope cleanup.
+difficulty_rubric:
+  L1: "Single inspection or read action with minimal setup."
+  L2: "One capability with configuration or composition, such as ACL, vector search, or full-text search."
+  L3: "Multi-step workflow within one domain, such as schema evolution or a record lifecycle."
+  L4: "Reserved for a verified cross-cutting lifecycle workflow; no L4 task is admitted in this candidate."
+human_review_checkpoints:
+  - "official-doc refresh and support/exclusion review"
+  - "bottom-up task and oracle review"
+  - "final suite and pack freeze"
+  - "hosted-trusted publication bundle release"

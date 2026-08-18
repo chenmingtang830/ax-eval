@@ -1,0 +1,16 @@
+schema: ax.daeb-v2-2-native-journey/v1
+name: DAEB-V2.4-FIVE-VENDOR-NATIVE-JOURNEY
+version: 2.4-frozen
+formal: false
+model: deepseek/deepseek-v4-flash-20260731
+provider: gmicloud
+harness: pi
+trial: 1
+task_id: db-J01-native-journey
+vendors:
+  cockroachdb: { display_name: CockroachDB, base_pack: ax-arena/benchmark/axarena-database/v2-3/packs/cockroachdb/pack.yaml, credential_envs: [COCKROACH_API_KEY, COCKROACH_CONNECTION_STRING], scope_envs: [COCKROACH_CLUSTER_ID, COCKROACH_DATABASE], data_connection_env: COCKROACH_CONNECTION_STRING, native_markers: ["cockroach ", "ccloud "], official_domains: [cockroachlabs.com] }
+  insforge: { display_name: InsForge, base_pack: ax-arena/benchmark/axarena-database/v2-3/packs/insforge/pack.yaml, credential_envs: [INSFORGE_API_KEY, INSFORGE_CONNECTION_STRING], scope_envs: [INSFORGE_PROJECT_URL], data_connection_env: INSFORGE_CONNECTION_STRING, native_markers: ["@insforge/cli"], official_domains: [insforge.dev] }
+  neon: { display_name: Neon, base_pack: ax-arena/benchmark/axarena-database/v2-3/packs/neon/pack.yaml, credential_envs: [NEON_API_KEY, NEON_DATABASE_URL], scope_envs: [NEON_PROJECT_ID, NEON_BRANCH_ID], data_connection_env: NEON_DATABASE_URL, native_markers: [neonctl, "@neondatabase/cli"], official_domains: [neon.com] }
+  nile: { display_name: Nile, base_pack: ax-arena/benchmark/axarena-database/v2-3/packs/nile/pack.yaml, credential_envs: [NILE_API_KEY, NILE_DATABASE_URL], scope_envs: [NILE_WORKSPACE, NILE_DB, NILE_API_URL], data_connection_env: NILE_DATABASE_URL, native_markers: ["nile ", niledatabase], official_domains: [thenile.dev] }
+  supabase: { display_name: Supabase, base_pack: ax-arena/benchmark/axarena-database/v2-3/packs/supabase/pack.yaml, credential_envs: [SUPABASE_ACCESS_TOKEN, SUPABASE_DB_URL, SUPABASE_DB_PASSWORD], scope_envs: [SUPABASE_PROJECT_REF, SUPABASE_URL], data_connection_env: SUPABASE_DB_URL, native_markers: ["supabase "], official_domains: [supabase.com] }
+acceptance: { oracle_defects: 0, route_mismatches: 0, unexplained_invalid_infra: 0, unexplained_invalid_evidence: 0, non_unanimous_stage_required: false, differentiating_dimensions_required: 2 }

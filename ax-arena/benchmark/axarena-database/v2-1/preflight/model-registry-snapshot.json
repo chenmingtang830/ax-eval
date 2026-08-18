@@ -1,0 +1,39 @@
+{
+  "schema": "ax.openrouter-model-registry-snapshot/v1",
+  "retrieved_at": "2026-08-15T09:26:45.930Z",
+  "source": "https://openrouter.ai/api/v1/models",
+  "notes": [
+    "The frozen date-stamped slugs are accepted OpenRouter aliases, not exact catalog ids.",
+    "The provider endpoint model ids are retained so alias resolution is auditable.",
+    "This is a route-input snapshot, not formal model-evaluation evidence."
+  ],
+  "models": [
+    {
+      "requested_model": "google/gemini-3.7-flash-20260813",
+      "catalog_exact": false,
+      "provider": "Google",
+      "provider_tag": "google-vertex/global",
+      "resolved_endpoint_model": "google/gemini-3.7-flash",
+      "endpoint_status": 0,
+      "route_preflight": "pass-with-data-policy-allow"
+    },
+    {
+      "requested_model": "deepseek/deepseek-v4-flash-20260731",
+      "catalog_exact": false,
+      "provider": "DeepSeek",
+      "provider_tag": "deepseek/fp8",
+      "resolved_endpoint_model": "deepseek/deepseek-v4-flash-0731",
+      "endpoint_status": 0,
+      "route_preflight": "blocked-workspace-guardrail"
+    },
+    {
+      "requested_model": "z-ai/glm-5.2-20260616",
+      "catalog_exact": false,
+      "provider": "Z.AI",
+      "provider_tag": "z-ai/fp8",
+      "resolved_endpoint_model": "z-ai/glm-5.2",
+      "endpoint_status": 0,
+      "route_preflight": "pass"
+    }
+  ]
+}

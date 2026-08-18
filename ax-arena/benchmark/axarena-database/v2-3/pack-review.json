@@ -1,0 +1,84 @@
+{
+  "schema": "ax.daeb-v2-3-pack-review/v1",
+  "status": "reviewed-and-approved",
+  "suite": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/vendor-experience-suite.yaml",
+    "sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15"
+  },
+  "derived_pack_manifest": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/packs/derived-pack-manifest.json",
+    "sha256": "6cb561a5e15b2207371c9b4af0372883b1adf01239a2a002bcda6adaf625a604"
+  },
+  "packs": {
+    "cockroachdb": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/cockroachdb/pack.yaml",
+      "pack_sha256": "55ea3712e05ca65095b53834d39712d26c6e63e73201c95ccad9377bb19555b4",
+      "approval": "ax-arena/benchmark/axarena-database/v2-3/packs/cockroachdb/pack.approval.json",
+      "approved": false,
+      "approval_reason": "pack changed since approval (approved b14b80b8f6bf0bdc, now 33428bd752879fdc) — re-review required"
+    },
+    "insforge": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/insforge/pack.yaml",
+      "pack_sha256": "4bfcbbad8c84e25b88fb45717048bd45c2cc84bcbbe4db07cb8f18d38fb84d19",
+      "approval": "ax-arena/benchmark/axarena-database/v2-3/packs/insforge/pack.approval.json",
+      "approved": false,
+      "approval_reason": "pack changed since approval (approved e02c656c81d9be1f, now b7a2d62dc21e6798) — re-review required"
+    },
+    "neon": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/neon/pack.yaml",
+      "pack_sha256": "b987ba13465329d66ebef58c77251388dd0490229e0d2029c5d31480e462cee9",
+      "approval": "ax-arena/benchmark/axarena-database/v2-3/packs/neon/pack.approval.json",
+      "approved": true,
+      "approval_reason": null
+    },
+    "nile": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/nile/pack.yaml",
+      "pack_sha256": "1dae3ced278e51aaa2b1274bd3ac2be290d7be445a6f0c35030598f8a25647bb",
+      "approval": "ax-arena/benchmark/axarena-database/v2-3/packs/nile/pack.approval.json",
+      "approved": true,
+      "approval_reason": null
+    },
+    "supabase": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/supabase/pack.yaml",
+      "pack_sha256": "25193a584552c0abeca8bbe5328fc75d19f405cdf378425766a4d767edeea1c5",
+      "approval": "ax-arena/benchmark/axarena-database/v2-3/packs/supabase/pack.approval.json",
+      "approved": false,
+      "approval_reason": "pack changed since approval (approved 55bee6db8b2b80b0, now 419b95eafc9ed3c9) — re-review required"
+    },
+    "turso": {
+      "pack": "ax-arena/benchmark/axarena-database/v2-3/packs/turso/pack.yaml",
+      "pack_sha256": "c3741ca095a73f10237fa59a500d82f6f8d67ad3304a2299dcc765d73010c32f",
+      "approval": "ax-arena/benchmark/axarena-database/v2-3/packs/turso/pack.approval.json",
+      "approved": false,
+      "approval_reason": "pack changed since approval (approved f5bd83f98b04598b, now d94e429d6f989d5e) — re-review required"
+    }
+  },
+  "native_contract_manifest": {
+    "path": "ax-arena/benchmark/axarena-database/v2-3/contracts/native-contract-manifest.json",
+    "sha256": "c4485e4be5a4a05a604d9ca319116abf7587cf3e2d7ecd290b7c615e93b0bb67"
+  },
+  "native_contracts": {
+    "gemini-3.7-flash.yaml": {
+      "contract": "ax-arena/benchmark/axarena-database/v2-3/contracts/gemini-3.7-flash.yaml",
+      "contract_sha256": "758e15cc82912a7bbf4aea4aca46aa67e09964d1127148953d03ee419060118b",
+      "hash_matches": true
+    },
+    "qwen-3.8-27b.yaml": {
+      "contract": "ax-arena/benchmark/axarena-database/v2-3/contracts/qwen-3.8-27b.yaml",
+      "contract_sha256": "6f492a199b74a8d0cfd61875412fe334a823c292399b2c4c9181179fc214d4a7",
+      "hash_matches": true
+    },
+    "kimi-k3.yaml": {
+      "contract": "ax-arena/benchmark/axarena-database/v2-3/contracts/kimi-k3.yaml",
+      "contract_sha256": "1489700a6527ae8af5e7a5306131e8df0d7cec4d39c4fe1f5506dc77b5bbc9da",
+      "hash_matches": true
+    }
+  },
+  "required_human_decisions": [
+    "Confirm each exact derived pack contains only the frozen V2.3 atomic task subset.",
+    "Confirm the independent oracle and cleanup contract for every admitted tuple.",
+    "Confirm the provider-pinned J01 native contracts bind only to the V2.3 pack root.",
+    "Approve the exact pack hashes; later edits require a new review and approval sidecar."
+  ],
+  "path_normalization": "Repository-relative paths replace workstation-absolute paths; approved pack and contract bytes are unchanged."
+}

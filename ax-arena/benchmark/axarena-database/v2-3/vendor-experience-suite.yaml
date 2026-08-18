@@ -1,0 +1,91 @@
+schema: ax.daeb-v2-3-vendor-experience-suite/v1
+name: DAEB-V2.3-CLI-VENDOR-EXPERIENCE-DIAGNOSTIC
+version: 0.1.0-frozen
+formal: false
+status: frozen
+surface: cli
+primary_unit: vendor
+cell_unit: vendor-task-model-trial
+vendors:
+  - cockroachdb
+  - insforge
+  - neon
+  - nile
+  - supabase
+  - turso
+model_strata:
+  - model: google/gemini-3.7-flash-20260813
+    provider: google-vertex
+  - model: qwen/qwen3.8-27b-20260814
+    provider: akashml
+  - model: moonshotai/kimi-k3
+    provider: moonshotai
+trial_count: 2
+task_selection_policy: >-
+  Tasks are selected only from documented, controller-witnessed candidate work
+  and the frozen V2.2 native-journey anchor. Vendor-specific unsupported tuples
+  remain structural-na; outcomes from V2.2 do not select, drop, or weight tasks.
+scoring:
+  primary: equal-weight macro mean of task-family pass@1 over valid cells
+  secondary:
+    - task-family pass rate
+    - trial stability
+    - discovery, connection, operation, and recovery diagnostics
+    - latency, first-action latency, tool and route volume, and cost
+  reporting: vendors are rows; models are secondary stability strata
+admission_requirements:
+  - documented-native-path
+  - exact-sandbox-scope
+  - independent-pre-cleanup-readback
+  - exact-scope-cleanup
+  - valid-trace-and-pinned-route
+  - full-file-human-pack-approval-before-freeze
+tasks:
+  - id: db-T17-cli-session-discovery
+    family: discovery
+    source: ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+    source_task_id: db-T17-cli-session-discovery
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase]
+    structural_na_vendors: [turso]
+  - id: db-T21-cli-principal-continuity
+    family: identity
+    source: ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+    source_task_id: db-T21-cli-principal-continuity
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase]
+    structural_na_vendors: [turso]
+  - id: db-T18-constraint-preservation
+    family: safety
+    source: ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+    source_task_id: db-T18-constraint-preservation
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase]
+    structural_na_vendors: [turso]
+  - id: db-T19-transactional-record-recovery
+    family: recovery
+    source: ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+    source_task_id: db-T19-transactional-record-recovery
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase]
+    structural_na_vendors: [turso]
+  - id: db-T20-aggregate-query
+    family: query
+    source: ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+    source_task_id: db-T20-aggregate-query
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase]
+    structural_na_vendors: [turso]
+  - id: db-T22-negative-query-verification
+    family: verification
+    source: ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+    source_task_id: db-T22-negative-query-verification
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase]
+    structural_na_vendors: [turso]
+  - id: db-J01-native-journey
+    family: end-to-end
+    source: ax-arena/benchmark/axarena-database/v2-2/native-journey.yaml
+    source_task_id: db-J01-native-journey
+    admitted_vendors: [cockroachdb, insforge, neon, nile, supabase, turso]
+    structural_na_vendors: []
+notes:
+  - db-J01 is one task with separately reported stages and is never double-counted.
+  - API, SDK, and MCP results are separate surface suites and are not pooled here.
+  - Turso is structural-na for T18/T19/T20 until an independently auditable
+    native verifier is admitted; the prior candidate pack has no sql_conn for
+    these SQL predicates, so its agent outcomes cannot be benchmark evidence.

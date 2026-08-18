@@ -1,0 +1,232 @@
+schema: ax.grader-ledger/v1
+benchmark: CANDIDATE-SUITE-V2-1
+generated_at: 2026-08-15T11:24:47.680Z
+tasks:
+  - task_id: db-T17-cli-session-discovery
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T21-cli-principal-continuity
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T18-constraint-preservation
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T19-transactional-record-recovery
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - manual-spot-check
+      - grader-fairness-review
+  - task_id: db-T20-aggregate-query
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T22-negative-query-verification
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T07-backup-and-restore
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - manual-spot-check
+      - grader-fairness-review
+  - task_id: db-T02-evolve-schema
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T09-inspect-schema
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T04-query-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T11-vector-search
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T06-write-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T13-change-data-capture
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - manual-spot-check
+      - grader-fairness-review
+  - task_id: db-T14-full-text-search
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T15-database-branching
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T16-data-integrity-and-transactions
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - manual-spot-check
+      - grader-fairness-review

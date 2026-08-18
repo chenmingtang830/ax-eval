@@ -1,0 +1,38 @@
+{
+  "schema": "ax.daeb-v2-3-benchmark-readiness/v2",
+  "status": "not-ready",
+  "formal": false,
+  "checked_at": "2026-08-17T02:48:10.750Z",
+  "bindings": {
+    "suite_sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15",
+    "review_sha256": "47251c89c4553cc88a13ecff13ce10b588d3d96e14b7e3b52ebeac2b73016069",
+    "plan_suite_sha256": "855dfda149dd352b550587e43b7e407f35f0b0868de95b09849f976989172e15"
+  },
+  "coverage": {
+    "total_cells": 252,
+    "runnable_cells": 216,
+    "structural_na_cells": 36,
+    "observed_runnable_cells": 0
+  },
+  "blockers": [
+    {
+      "code": "missing-planned-observations",
+      "detail": "216/216 runnable cells have no terminal observation",
+      "sample_cell_ids": [
+        "cockroachdb::db-T17-cli-session-discovery::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-T21-cli-principal-continuity::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-T18-constraint-preservation::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-T19-transactional-record-recovery::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-T20-aggregate-query::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-T22-negative-query-verification::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-J01-native-journey::google/gemini-3.7-flash-20260813::t1",
+        "cockroachdb::db-T17-cli-session-discovery::google/gemini-3.7-flash-20260813::t2",
+        "cockroachdb::db-T21-cli-principal-continuity::google/gemini-3.7-flash-20260813::t2",
+        "cockroachdb::db-T18-constraint-preservation::google/gemini-3.7-flash-20260813::t2",
+        "cockroachdb::db-T19-transactional-record-recovery::google/gemini-3.7-flash-20260813::t2",
+        "cockroachdb::db-T20-aggregate-query::google/gemini-3.7-flash-20260813::t2"
+      ]
+    }
+  ],
+  "path_normalization": "Repository-relative paths replace workstation-absolute paths; approved pack and contract bytes are unchanged."
+}

@@ -1,0 +1,119 @@
+schema: ax.daeb-v2-cli-semantic-audit/v1
+benchmark: DAEB-v2-cli-rc0
+audited_at: 2026-08-13
+status: rc0-audited-not-publication-ready
+purpose: >-
+  Freeze the present CLI data-plane calibration inputs and state what they
+  measure. This is not an assertion of equivalent vendor-native CLI capability.
+method:
+  source_policy: official vendor documentation only
+  task_review: >-
+    Re-read the current pack contract, its actual command transport, and the
+    official-document admission decision. Classify exercised capability rather
+    than inferring product specificity from the vendor name.
+  outcome_policy: >-
+    Support requires setup, mutation, independent read-back, cleanup, and a
+    deterministic witness; it does not establish a comparative product claim.
+dimensions:
+  transport:
+    vendor_cli: A vendor command opens the SQL data plane.
+    postgres_cli: The pack uses portable psql and a vendor connection string.
+  capability_class:
+    common_sql: Portable relational SQL/data-plane workflow.
+    shared_postgres_extension: PostgreSQL extension or feature, not vendor-specific here.
+    vendor_feature_sql: Vendor-documented SQL feature, not a control-plane workflow.
+source_documents:
+  cockroachdb: [https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary, https://www.cockroachlabs.com/docs/stable/vector, https://www.cockroachlabs.com/docs/v26.2/full-text-search]
+  insforge: [https://insforge.dev/blog/introducing-insforge-cli, https://docs.insforge.dev/core-concepts/database/pgvector]
+  neon: [https://neon.com/docs/connect/query-with-psql-editor, https://neon.com/docs/guides/row-level-security]
+  nile: [https://www.thenile.dev/docs/cli/interacting_db, https://www.thenile.dev/docs/extensions/vector, https://www.thenile.dev/docs/extensions/pg_bigm]
+  turso: [https://docs.turso.tech/cli/db/shell, https://docs.turso.tech/guides/vector-search]
+vendor_reviews:
+  - vendor: cockroachdb
+    transport: vendor_cli
+    command: cockroach sql --url <COCKROACH_CONNECTION_STRING>
+    retained_tasks: [db-T01-access-control, db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T05-vector-search, db-T06-write-records, db-T07-full-text-search]
+    common_sql: [db-T01-access-control, db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T06-write-records]
+    vendor_feature_sql: [db-T05-vector-search, db-T07-full-text-search]
+    finding: >-
+      Genuine Cockroach SQL CLI transport. T05 and T07 exercise documented
+      features, but are SQL data-plane tasks rather than control-plane workflows.
+  - vendor: insforge
+    transport: postgres_cli
+    command: psql <INSFORGE_CONNECTION_STRING>
+    retained_tasks: [db-T01-access-control, db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T05-vector-search, db-T06-write-records]
+    common_sql: [db-T01-access-control, db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T06-write-records]
+    shared_postgres_extension: [db-T05-vector-search]
+    finding: >-
+      InsForge documents native db query and inspection commands, but this pack
+      invokes portable psql; it does not measure native InsForge CLI use.
+  - vendor: neon
+    transport: postgres_cli
+    command: psql <NEON_DATABASE_URL>
+    retained_tasks: [db-T01-access-control, db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T05-vector-search, db-T06-write-records, db-T07-full-text-search]
+    common_sql: [db-T01-access-control, db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T06-write-records]
+    shared_postgres_extension: [db-T05-vector-search, db-T07-full-text-search]
+    finding: >-
+      Deliberate psql transport measures Neon-hosted PostgreSQL data-plane
+      operation, not a Neon-native command/control surface.
+  - vendor: nile
+    transport: postgres_cli
+    command: psql <NILE_DATABASE_URL>
+    retained_tasks: [db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T05-vector-search, db-T06-write-records, db-T07-full-text-search]
+    common_sql: [db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T06-write-records]
+    shared_postgres_extension: [db-T05-vector-search, db-T07-full-text-search]
+    excluded_tasks:
+      - task: db-T01-access-control
+        reason: Tenant isolation is not the user-configured access-control mechanism required by this task.
+    finding: >-
+      The connection contract does not exercise Nile tenant-aware semantics;
+      retained tasks are shared SQL calibration, not a Nile differentiation score.
+  - vendor: turso
+    transport: vendor_cli
+    command: turso db shell <TURSO_SANDBOX_DATABASE>
+    retained_tasks: [db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T05-vector-search, db-T06-write-records]
+    common_sql: [db-T02-evolve-schema, db-T03-inspect-schema, db-T04-query-records, db-T06-write-records]
+    vendor_feature_sql: [db-T05-vector-search]
+    excluded_tasks:
+      - task: db-T01-access-control
+        reason: Requires organization-level token minting outside ordinary cell credentials.
+      - task: db-T07-full-text-search
+        reason: Admitted sandbox lacks the documented experimental FTS capability.
+    finding: >-
+      Genuine Turso SQL-shell transport. T05 exercises its vector capability;
+      the other retained tasks are portable SQLite-style SQL.
+aggregate:
+  retained_tuple_count: 31
+  common_sql_tuple_count: 23
+  shared_postgres_extension_tuple_count: 5
+  vendor_feature_sql_tuple_count: 3
+  vendor_native_control_plane_tuple_count: 0
+  permitted_reporting:
+    - Per-vendor and aggregate CLI data-plane calibration outcomes with denominators disclosed.
+    - Per-tuple diagnostic findings.
+  prohibited_reporting:
+    - A vendor-capability leaderboard computed across all 31 tuples.
+    - A claim that psql success measures vendor-native CLI/control-plane capability.
+    - A product-wide claim from the single GLM 5.2 trial.
+freeze_inputs:
+  pack_sha256:
+    cockroachdb: eb90297b0c430a5a3195e0345dc8d25cb2021a4f9f0a992ed7524413a8172598
+    insforge: 18485190178677349109b9156a8b7e1e7d5e7cf2dff0a92e135d7f0557799d25
+    neon: 0b5c087f083f3b90fde4a910ec33aaad2bf07ed9471ac2cdc97e65a44ca79bec
+    nile: bc041f3caf1bd9aaaf4da8f669536bed1a17318c5982230753291f38e0d00c16
+    turso: 49b439a1071078b5b5ddd9958f8b4ac47691eaf882f342ade753941d02c0fb97
+  authoring_artifact_sha256:
+    cli_doc_audit: 7b5198d00d2361f31d64e74574f54c93e2b72cf77c190eaa93ac4afba1cb3086
+    support_matrix: c82c805854552e6b8efd9a93d3515d69e8420e1196d41773940659e419757c96
+    witness_plan: b9a878296ee0c223150f05ed3ed1c065eca6881f8d6c32d41774e71ea9ff75f8
+    witness_run_matrix: 120d0ac0ecb3c59dfd0902e45e3db6d8687a47e9cfff51fa5b3d9885c843a103
+  verification_run: results/daeb-v2-witness-20260812-final-cli-only-r6
+  verification_result: 31/31 deterministic witnesses passed
+known_environment_debt:
+  - >-
+    Cockroach execution must reject localhost or a locally bootstrapped server
+    and assert the intended hosted cluster identity before a future model trial.
+  - >-
+    A malformed role from a pre-RC interrupted Cockroach pilot remains externally
+    blocked; current credentials cannot remove it. It is outside frozen short
+    run namespaces and requires cluster-admin cleanup before hosted publication.

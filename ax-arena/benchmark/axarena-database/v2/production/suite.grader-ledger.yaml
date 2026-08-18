@@ -1,0 +1,11 @@
+schema: ax.grader-ledger/v1
+benchmark: DAEB-2-CLI-Production
+generated_at: 2026-08-14T16:00:00.000Z
+tasks:
+  - {task_id: db-T01-access-control, outcome_graders: [provider-aware SQL roundtrip and denied-role probe], trajectory_graders: [CLI transport and namespace trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
+  - {task_id: db-T02-evolve-schema, outcome_graders: [provider-aware schema metadata roundtrip], trajectory_graders: [CLI transport trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
+  - {task_id: db-T03-inspect-schema, outcome_graders: [provider-aware metadata roundtrip], trajectory_graders: [CLI transport trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
+  - {task_id: db-T04-query-records, outcome_graders: [provider-aware filtered-read roundtrip], trajectory_graders: [CLI transport trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
+  - {task_id: db-T05-vector-search, outcome_graders: [provider-aware nearest-neighbor roundtrip], trajectory_graders: [CLI transport trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
+  - {task_id: db-T06-write-records, outcome_graders: [provider-aware lifecycle roundtrip], trajectory_graders: [CLI transport trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
+  - {task_id: db-T07-full-text-search, outcome_graders: [provider-aware text-search roundtrip], trajectory_graders: [CLI transport trace review], efficiency_metrics: [latency, tool calls], human_calibration: [delegated trace review]}
