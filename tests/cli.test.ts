@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { TargetPackSchema } from "../src/schemas.js";
 import { packFileContentHash, writeApproval } from "../src/generate/review.js";
+import { v21ExecPlanArgs } from "../ax-arena/benchmark/src/runtime/v21-controller.js";
+import type { V21InvocationPlan } from "../ax-arena/benchmark/src/runtime/v21-execution.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
@@ -34,17 +36,21 @@ function writeSyntheticSuite(root: string): string {
 }
 
 /** Run the CLI via Node + tsx loader; return { code, out } (stdout+stderr merged). */
-function runCli(args: string[], env: Record<string, string> = {}, cwd: string = ROOT): { code: number; out: string } {
+function runCli(args: string[], env: Record<string, string | undefined> = {}, cwd: string = ROOT): { code: number; out: string } {
   try {
+    const childEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      ASANA_PAT: "test-token",
+      ASANA_SANDBOX_PROJECT_GID: "123",
+      ...env,
+    };
+    for (const [name, value] of Object.entries(childEnv)) {
+      if (value === undefined) delete childEnv[name];
+    }
     const out = execFileSync("node", ["--import", TSX_LOADER, CLI, ...args], {
       cwd,
       encoding: "utf8",
-      env: {
-        ...process.env,
-        ASANA_PAT: "test-token",
-        ASANA_SANDBOX_PROJECT_GID: "123",
-        ...env,
-      },
+      env: childEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });
     return { code: 0, out };
@@ -871,6 +877,97 @@ console.log(JSON.stringify({ ok: true }));
     const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
     expect(executor.harness).toBe("claude-code");
     expect(executor.profile).toBe("medium");
+  }, 20_000);
+
+  it("runs V2.1 OpenRouter controller args with only the isolated controller key", () => {
+    const dir = freshDir();
+    const binDir = freshDir();
+    const packPath = resolve(dir, "controller-pack.yaml");
+    writeFileSync(packPath, `
+name: controller-pack
+run_id: controller
+auth_method: none
+auth: { type: none }
+base_url: https://example.invalid
+site_url: ""
+docs_urls: []
+surfaces:
+  cli:
+    bin: psql
+    install: test fixture
+    docs_url: https://example.invalid/docs
+tasks:
+  - id: task-one
+    difficulty: L1
+    prompt: Complete task one {ns}
+    allowed_surfaces: [cli]
+    oracles: []
+`.trim());
+    const fakePi = resolve(binDir, "pi");
+    writeFileSync(fakePi, `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) { console.log("0.51.0"); process.exit(0); }
+if (process.env.OPENROUTER_API_KEY !== "ax-eval-local-gateway") {
+  console.error("missing dummy gateway credential"); process.exit(10);
+}
+if (process.env.AX_EVAL_OPENROUTER_API_KEY) {
+  console.error("controller key leaked into child"); process.exit(11);
+}
+const prompt = args.at(-1) || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+if (!resultPath || !tracePath) { console.error("missing output paths"); process.exit(12); }
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "medium", ns: "controller-ns", surface: "cli", discovery: {},
+  results: { "task-one": { gid: "task-one-gid" } }
+}));
+fs.writeFileSync(tracePath, "[]");
+console.log(JSON.stringify({ type: "agent_end", messages: [] }));
+`);
+    chmodSync(fakePi, 0o755);
+    const plan: V21InvocationPlan = {
+      schema: "ax.daeb-v2-1-invocation-plan/v1",
+      invocation_id: "v21-neon-pi-test",
+      vendor: "neon",
+      harness: "pi",
+      model: "google/gemini-3.7-flash-20260813",
+      trial: 1,
+      family: "access-auth-discovery",
+      task_ids: ["task-one"],
+      namespace: "v21-neon-pi-test-ns",
+      discovery_reset: "family",
+      status: "pending",
+    };
+    const controllerArgs = v21ExecPlanArgs({
+      packPath,
+      runDir: resolve(dir, "run"),
+      plan,
+      gatewayUrl: "http://127.0.0.1:43123/v1",
+      provider: "google-vertex",
+      dataCollection: "allow",
+      harness: "pi",
+      model: plan.model,
+    });
+    const execPlanArgs = [
+      ...controllerArgs.slice(controllerArgs.indexOf("exec-plan")),
+      // The real controller uses reviewed frozen packs. This focused fixture is
+      // generated in-test, so bypass only that unrelated approval gate.
+      "--skip-review",
+    ];
+    const result = runCli(execPlanArgs, {
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      AX_EVAL_PI_BIN: fakePi,
+      AX_EVAL_OPENROUTER_API_KEY: "controller-only-key",
+      OPENROUTER_API_KEY: undefined,
+    }, dir);
+
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).not.toContain("requires one of: OPENROUTER_API_KEY");
+    // The fake Pi exits nonzero unless it received the dummy gateway key and
+    // did not receive AX_EVAL_OPENROUTER_API_KEY, so a successful CLI run
+    // proves both sides of the isolated credential boundary.
+    expect(result.out).toContain("pi/CLI/medium");
   }, 20_000);
 
   it("runs OpenCode with an explicit allowlisted environment", () => {

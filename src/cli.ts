@@ -1774,7 +1774,19 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     const validRoute = harness === "pi" ? isPiModelRoute(args.model) : isOpenCodeModelRoute(args.model);
     if (!validRoute) throw new Error(`--invoke --harness ${harness} requires --model <provider/model>`);
     const providerCredentials = harness === "pi" ? piProviderCredentialNames(args.model!) : openCodeProviderCredentialNames(args.model!);
-    if (providerCredentials.length && !providerCredentials.some((name) => Boolean(process.env[name]?.trim()))) {
+    // A controller-owned OpenRouter gateway authenticates outside the isolated
+    // child process. The child must receive only the dummy local-gateway key
+    // provisioned below, so requiring a second parent OPENROUTER_API_KEY here
+    // would reject the documented AX_EVAL_OPENROUTER_API_KEY-only setup before
+    // provisioning. Direct OpenRouter runs still require their normal key.
+    const controllerOwnsOpenRouterCredential = Boolean(
+      openrouterRoutePolicy
+      && args.model?.startsWith("openrouter/")
+      && providerCredentials.includes("OPENROUTER_API_KEY"),
+    );
+    if (!controllerOwnsOpenRouterCredential
+      && providerCredentials.length
+      && !providerCredentials.some((name) => Boolean(process.env[name]?.trim()))) {
       const provider = harness === "pi" ? piProviderId(args.model!) : openCodeProviderId(args.model!);
       throw new Error(`${harness === "pi" ? "Pi" : "OpenCode"} provider ${provider} requires one of: ${providerCredentials.join(", ")}`);
     }
