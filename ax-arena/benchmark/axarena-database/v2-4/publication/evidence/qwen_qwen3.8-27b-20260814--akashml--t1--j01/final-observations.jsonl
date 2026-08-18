@@ -1,0 +1,348 @@
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "cockroachdb",
+  "display_name": "CockroachDB",
+  "model": "qwen/qwen3.8-27b-20260814",
+  "provider": "akashml",
+  "harness": "pi",
+  "trial": 1,
+  "namespace": "v22_cockroachdb_d861723ced",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 24,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "duration_ms": 324909,
+    "total_duration_ms": 324909,
+    "first_action_latency_ms": 12621,
+    "transcript_event_count": 13536
+  },
+  "route": {
+    "entries": 25,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.12297175
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_cockroachdb_d861723ced"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1/cells/cockroachdb"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "insforge",
+  "display_name": "InsForge",
+  "model": "qwen/qwen3.8-27b-20260814",
+  "provider": "akashml",
+  "harness": "pi",
+  "trial": 1,
+  "namespace": "v22_insforge_18b02de038",
+  "status": "pass",
+  "stages": {
+    "discovery": false,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 9,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": false,
+    "native_entrypoint_observed": false,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "direct-success"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "duration_ms": 207413,
+    "total_duration_ms": 207413,
+    "first_action_latency_ms": 11293,
+    "transcript_event_count": 7082
+  },
+  "route": {
+    "entries": 9,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.045336299999999996
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_insforge_18b02de038"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1/cells/insforge"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "neon",
+  "display_name": "Neon",
+  "model": "qwen/qwen3.8-27b-20260814",
+  "provider": "akashml",
+  "harness": "pi",
+  "trial": 1,
+  "namespace": "v22_neon_41069fd58a",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 17,
+    "searches": 0,
+    "fetched_urls": 4,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": false,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "direct-success"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "duration_ms": 226816,
+    "total_duration_ms": 226816,
+    "first_action_latency_ms": 3761,
+    "transcript_event_count": 8739
+  },
+  "route": {
+    "entries": 16,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.07284834999999999
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_neon_41069fd58a"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1/cells/neon"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "nile",
+  "display_name": "Nile",
+  "model": "qwen/qwen3.8-27b-20260814",
+  "provider": "akashml",
+  "harness": "pi",
+  "trial": 1,
+  "namespace": "v22_nile_18e642720c",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 17,
+    "searches": 0,
+    "fetched_urls": 6,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "duration_ms": 230294,
+    "total_duration_ms": 230294,
+    "first_action_latency_ms": 3437,
+    "transcript_event_count": 8450
+  },
+  "route": {
+    "entries": 13,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.05637315
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_nile_18e642720c"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1/cells/nile"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "supabase",
+  "display_name": "Supabase",
+  "model": "qwen/qwen3.8-27b-20260814",
+  "provider": "akashml",
+  "harness": "pi",
+  "trial": 1,
+  "namespace": "v22_supabase_19b295a292",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 13,
+    "searches": 0,
+    "fetched_urls": 5,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "duration_ms": 161353,
+    "total_duration_ms": 161353,
+    "first_action_latency_ms": 9709,
+    "transcript_event_count": 6134
+  },
+  "route": {
+    "entries": 14,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.042826249999999996
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_supabase_19b295a292"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1/cells/supabase"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "turso",
+  "display_name": "Turso",
+  "model": "qwen/qwen3.8-27b-20260814",
+  "provider": "akashml",
+  "harness": "pi",
+  "trial": 1,
+  "namespace": "v22_turso_d1de1810cb",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 33,
+    "searches": 0,
+    "fetched_urls": 17,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "duration_ms": 356056,
+    "total_duration_ms": 356056,
+    "first_action_latency_ms": 3862,
+    "transcript_event_count": 16516
+  },
+  "route": {
+    "entries": 40,
+    "upstream_errors": 1,
+    "mismatch": false,
+    "reported_cost_usd": 0.18446975
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_turso_d1de1810cb"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260816-j01-t1-r1/cells/turso"
+}

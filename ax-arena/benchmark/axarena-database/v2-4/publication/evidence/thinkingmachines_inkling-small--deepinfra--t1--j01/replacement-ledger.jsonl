@@ -1,0 +1,9 @@
+{
+  "schema": "ax.daeb-v2-2-replacement/v1",
+  "vendor": "nile",
+  "reason": "controller-optional-nile-profile-pre-invocation-defect",
+  "original_status": "invalid-route",
+  "original_artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t1-r1/cells/nile",
+  "replacement_status": "pass",
+  "replacement_artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t1-nile-profile-recovery-r1/cells/nile"
+}

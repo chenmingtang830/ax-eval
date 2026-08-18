@@ -1,0 +1,22 @@
+{
+  "schema": "ax.daeb-v2-2-observation-reconciliation/v1",
+  "vendor": "nile",
+  "reason": "agent-action-with-trace-extractor-fallback-is-task-failure",
+  "prior_status": "invalid-evidence",
+  "final_status": "fail",
+  "prior_stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": false,
+    "recovery": false
+  },
+  "final_stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": false,
+    "recovery": false
+  },
+  "transcript_invalid_lines": 0,
+  "timed_out": false,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t2-r1/cells/nile"
+}

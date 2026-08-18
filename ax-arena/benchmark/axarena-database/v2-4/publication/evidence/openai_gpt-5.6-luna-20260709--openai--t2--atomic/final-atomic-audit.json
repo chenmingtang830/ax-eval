@@ -1,0 +1,19 @@
+{
+  "schema": "ax.daeb-v2-4-atomic-final-audit/v1",
+  "formal": false,
+  "input_root": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1",
+  "raw_observations_preserved": 30,
+  "final_observations": 30,
+  "reconciliations": 0,
+  "status_counts": {
+    "pass": 11,
+    "fail": 19,
+    "structural-na": 0,
+    "invalid-infra": 0,
+    "invalid-route": 0
+  },
+  "invalid_infra": 0,
+  "invalid_route": 0,
+  "valid_outcome_cells": 30,
+  "decision": "valid-outcomes-ready-for-vendor-summary"
+}

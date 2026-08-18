@@ -1,0 +1,97 @@
+{
+  "schema": "ax.daeb-v2-4-model-slices/v1",
+  "role": "supplementary",
+  "rows": [
+    {
+      "model": "google/gemini-3.7-flash-20260813",
+      "provider": "google-vertex",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 9,
+      "j01_fail": 1,
+      "j01_success_rate": 0.9,
+      "j01_total_reported_cost_usd": 1.3701366,
+      "j01_mean_reported_cost_usd": 0.13701365999999998,
+      "j01_median_duration_ms": 203038,
+      "j01_median_first_action_latency_ms": 8921.5
+    },
+    {
+      "model": "qwen/qwen3.8-27b-20260814",
+      "provider": "akashml",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 10,
+      "j01_fail": 0,
+      "j01_success_rate": 1,
+      "j01_total_reported_cost_usd": 0.6536429,
+      "j01_mean_reported_cost_usd": 0.06536429,
+      "j01_median_duration_ms": 217114.5,
+      "j01_median_first_action_latency_ms": 7570.5
+    },
+    {
+      "model": "z-ai/glm-5.2-20260616",
+      "provider": "z-ai",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 8,
+      "j01_fail": 2,
+      "j01_success_rate": 0.8,
+      "j01_total_reported_cost_usd": 1.55834108,
+      "j01_mean_reported_cost_usd": 0.155834108,
+      "j01_median_duration_ms": 227234,
+      "j01_median_first_action_latency_ms": 6063
+    },
+    {
+      "model": "meta/muse-spark-1.2",
+      "provider": "meta",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 8,
+      "j01_fail": 2,
+      "j01_success_rate": 0.8,
+      "j01_total_reported_cost_usd": 4.292325250000001,
+      "j01_mean_reported_cost_usd": 0.4292325250000001,
+      "j01_median_duration_ms": 299459.5,
+      "j01_median_first_action_latency_ms": 4299.5
+    },
+    {
+      "model": "thinkingmachines/inkling-small",
+      "provider": "deepinfra",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 4,
+      "j01_fail": 6,
+      "j01_success_rate": 0.4,
+      "j01_total_reported_cost_usd": 0.36053245,
+      "j01_mean_reported_cost_usd": 0.036053245,
+      "j01_median_duration_ms": 72187,
+      "j01_median_first_action_latency_ms": 1313.5
+    },
+    {
+      "model": "openai/gpt-5.6-luna-20260709",
+      "provider": "openai",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 6,
+      "j01_fail": 4,
+      "j01_success_rate": 0.6,
+      "j01_total_reported_cost_usd": 0.10515392,
+      "j01_mean_reported_cost_usd": 0.010515392,
+      "j01_median_duration_ms": 280232,
+      "j01_median_first_action_latency_ms": 4173.5
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash-20260731",
+      "provider": "coreweave",
+      "metrics_scope": "J01 native journeys only; two trials × five core vendors",
+      "j01_planned": 10,
+      "j01_pass": 4,
+      "j01_fail": 6,
+      "j01_success_rate": 0.4,
+      "j01_total_reported_cost_usd": 0.20616514,
+      "j01_mean_reported_cost_usd": 0.020616514,
+      "j01_median_duration_ms": 96790.5,
+      "j01_median_first_action_latency_ms": 2466
+    }
+  ]
+}

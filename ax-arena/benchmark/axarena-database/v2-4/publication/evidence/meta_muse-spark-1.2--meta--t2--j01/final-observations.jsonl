@@ -1,0 +1,356 @@
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "cockroachdb",
+  "display_name": "CockroachDB",
+  "model": "meta/muse-spark-1.2",
+  "provider": "meta",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_cockroachdb_9284e3d01d",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 15,
+    "searches": 0,
+    "fetched_urls": 23,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 251647,
+    "total_duration_ms": 251647,
+    "first_action_latency_ms": 3661,
+    "transcript_event_count": 311
+  },
+  "route": {
+    "entries": 18,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.28510055
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_cockroachdb_9284e3d01d"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-rate-limit-recovery-r1/cells/cockroachdb"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "insforge",
+  "display_name": "InsForge",
+  "model": "meta/muse-spark-1.2",
+  "provider": "meta",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_insforge_88618a9437",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 24,
+    "searches": 0,
+    "fetched_urls": 1,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 281721,
+    "total_duration_ms": 281721,
+    "first_action_latency_ms": 3317,
+    "transcript_event_count": 474
+  },
+  "route": {
+    "entries": 27,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.3738553000000001
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_insforge_88618a9437"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-rate-limit-recovery-r1/cells/insforge"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "neon",
+  "display_name": "Neon",
+  "model": "meta/muse-spark-1.2",
+  "provider": "meta",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_neon_4a034f491d",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 13,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 355965,
+    "total_duration_ms": 355965,
+    "first_action_latency_ms": 19995,
+    "transcript_event_count": 303
+  },
+  "route": {
+    "entries": 20,
+    "upstream_errors": 3,
+    "mismatch": false,
+    "reported_cost_usd": 0.25073465
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_neon_4a034f491d"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-r1/cells/neon"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "nile",
+  "display_name": "Nile",
+  "model": "meta/muse-spark-1.2",
+  "provider": "meta",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_nile_8786701241",
+  "status": "fail",
+  "stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 33,
+    "searches": 0,
+    "fetched_urls": 53,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "unresolved"
+  },
+  "world_state": {
+    "connection_ok": false,
+    "total_rows": null,
+    "active_rows": null,
+    "alpha_rows": null,
+    "recovered_rows": null,
+    "primary_constraints": null,
+    "unique_constraints": null,
+    "error": "ERROR:  relation \"axarena_native_journey_v22_nile_8786701241\" does not exist\nLINE 1: ...ELECT 'AXV22|' || (SELECT COUNT(*) FROM \"axarena_native_jour...\n                                                             ^\n"
+  },
+  "invocation": {
+    "ok": false,
+    "validity_status": "trace_invalid",
+    "timed_out": true,
+    "duration_ms": 1200038,
+    "total_duration_ms": 1200038,
+    "first_action_latency_ms": 11335,
+    "transcript_event_count": 626
+  },
+  "route": {
+    "entries": 35,
+    "upstream_errors": 2,
+    "mismatch": false,
+    "reported_cost_usd": 0.8484985500000001
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_nile_8786701241"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-r1/cells/nile",
+  "error": "ERROR:  relation \"axarena_native_journey_v22_nile_8786701241\" does not exist\nLINE 1: ...ELECT 'AXV22|' || (SELECT COUNT(*) FROM \"axarena_native_jour...\n                                                             ^\n"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "supabase",
+  "display_name": "Supabase",
+  "model": "meta/muse-spark-1.2",
+  "provider": "meta",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_supabase_4815f3921c",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 13,
+    "searches": 0,
+    "fetched_urls": 7,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 200988,
+    "total_duration_ms": 200988,
+    "first_action_latency_ms": 4938,
+    "transcript_event_count": 293
+  },
+  "route": {
+    "entries": 15,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.13587385
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_supabase_4815f3921c"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-r1/cells/supabase"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "turso",
+  "display_name": "Turso",
+  "model": "meta/muse-spark-1.2",
+  "provider": "meta",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_turso_fea8e56a9e",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 20,
+    "searches": 0,
+    "fetched_urls": 16,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 364150,
+    "total_duration_ms": 364150,
+    "first_action_latency_ms": 5120,
+    "transcript_event_count": 424
+  },
+  "route": {
+    "entries": 24,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.25471715
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_turso_fea8e56a9e"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-r1/cells/turso"
+}

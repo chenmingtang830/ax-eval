@@ -1,0 +1,301 @@
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "cockroachdb",
+  "display_name": "CockroachDB",
+  "model": "deepseek/deepseek-v4-flash-20260731",
+  "provider": "coreweave",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_cockroachdb_aeb6ec8a36",
+  "status": "fail",
+  "stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 19,
+    "searches": 0,
+    "fetched_urls": 7,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "unresolved"
+  },
+  "world_state": {
+    "connection_ok": false,
+    "total_rows": null,
+    "active_rows": null,
+    "alpha_rows": null,
+    "recovered_rows": null,
+    "primary_constraints": null,
+    "unique_constraints": null,
+    "error": "ERROR:  relation \"axarena_native_journey_v22_cockroachdb_aeb6ec8a36\" does not exist\n"
+  },
+  "invocation": {
+    "ok": false,
+    "validity_status": "trace_invalid",
+    "timed_out": false,
+    "duration_ms": 78556,
+    "total_duration_ms": 78556,
+    "first_action_latency_ms": 4010,
+    "transcript_event_count": 2035
+  },
+  "route": {
+    "entries": 20,
+    "upstream_errors": 1,
+    "mismatch": false,
+    "reported_cost_usd": 0.017733080000000002
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_cockroachdb_aeb6ec8a36"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/cockroachdb",
+  "error": "ERROR:  relation \"axarena_native_journey_v22_cockroachdb_aeb6ec8a36\" does not exist\n"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "insforge",
+  "display_name": "InsForge",
+  "model": "deepseek/deepseek-v4-flash-20260731",
+  "provider": "coreweave",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_insforge_f22f1809f4",
+  "status": "fail",
+  "stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 19,
+    "searches": 0,
+    "fetched_urls": 11,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": true,
+    "native_entrypoint_observed": false,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "unresolved"
+  },
+  "world_state": {
+    "connection_ok": false,
+    "total_rows": null,
+    "active_rows": null,
+    "alpha_rows": null,
+    "recovered_rows": null,
+    "primary_constraints": null,
+    "unique_constraints": null,
+    "error": "ERROR:  relation \"axarena_native_journey_v22_insforge_f22f1809f4\" does not exist\nLINE 1: SELECT 'AXV22|' || (SELECT COUNT(*) FROM \"axarena_native_jou...\n                                                 ^\n"
+  },
+  "invocation": {
+    "ok": false,
+    "validity_status": "trace_invalid",
+    "timed_out": false,
+    "duration_ms": 86333,
+    "total_duration_ms": 86333,
+    "first_action_latency_ms": 2856,
+    "transcript_event_count": 1871
+  },
+  "route": {
+    "entries": 16,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.014754090000000001
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_insforge_f22f1809f4"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/insforge",
+  "error": "ERROR:  relation \"axarena_native_journey_v22_insforge_f22f1809f4\" does not exist\nLINE 1: SELECT 'AXV22|' || (SELECT COUNT(*) FROM \"axarena_native_jou...\n                                                 ^\n"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "neon",
+  "display_name": "Neon",
+  "model": "deepseek/deepseek-v4-flash-20260731",
+  "provider": "coreweave",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_neon_e620207eb7",
+  "status": "fail",
+  "stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 19,
+    "searches": 0,
+    "fetched_urls": 2,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": false,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "unresolved"
+  },
+  "world_state": {
+    "connection_ok": false,
+    "total_rows": null,
+    "active_rows": null,
+    "alpha_rows": null,
+    "recovered_rows": null,
+    "primary_constraints": null,
+    "unique_constraints": null,
+    "error": "ERROR:  column \"recovery_note\" does not exist\nLINE 1: ...eb7\" WHERE marker='alpha_v22_neon_e620207eb7' AND recovery_n...\n                                                             ^\n"
+  },
+  "invocation": {
+    "ok": false,
+    "validity_status": "trace_invalid",
+    "timed_out": false,
+    "duration_ms": 85524,
+    "total_duration_ms": 85524,
+    "first_action_latency_ms": 1956,
+    "transcript_event_count": 2245
+  },
+  "route": {
+    "entries": 20,
+    "upstream_errors": 1,
+    "mismatch": false,
+    "reported_cost_usd": 0.015467429999999999
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_neon_e620207eb7"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/neon",
+  "error": "ERROR:  column \"recovery_note\" does not exist\nLINE 1: ...eb7\" WHERE marker='alpha_v22_neon_e620207eb7' AND recovery_n...\n                                                             ^\n"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "nile",
+  "display_name": "Nile",
+  "model": "deepseek/deepseek-v4-flash-20260731",
+  "provider": "coreweave",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_nile_59def4f1c3",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 18,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 350372,
+    "total_duration_ms": 350372,
+    "first_action_latency_ms": 2817,
+    "transcript_event_count": 2929
+  },
+  "route": {
+    "entries": 17,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.018872380000000005
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_nile_59def4f1c3"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/nile"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "supabase",
+  "display_name": "Supabase",
+  "model": "deepseek/deepseek-v4-flash-20260731",
+  "provider": "coreweave",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_supabase_59fad7626b",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 19,
+    "searches": 0,
+    "fetched_urls": 2,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 107248,
+    "total_duration_ms": 107248,
+    "first_action_latency_ms": 3471,
+    "transcript_event_count": 2763
+  },
+  "route": {
+    "entries": 16,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.01571536
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_supabase_59fad7626b"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/supabase"
+}

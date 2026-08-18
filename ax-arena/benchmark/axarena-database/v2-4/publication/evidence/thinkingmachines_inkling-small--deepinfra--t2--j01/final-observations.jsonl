@@ -1,0 +1,295 @@
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "cockroachdb",
+  "display_name": "CockroachDB",
+  "model": "thinkingmachines/inkling-small",
+  "provider": "deepinfra",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_cockroachdb_af5ade08b9",
+  "status": "fail",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 43,
+    "searches": 0,
+    "fetched_urls": 1,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 0,
+    "recovered_rows": 0,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 169945,
+    "total_duration_ms": 169945,
+    "first_action_latency_ms": 1467,
+    "transcript_event_count": 2310
+  },
+  "route": {
+    "entries": 43,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.05108600000000001
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_cockroachdb_af5ade08b9"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t2-r1/cells/cockroachdb"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "insforge",
+  "display_name": "InsForge",
+  "model": "thinkingmachines/inkling-small",
+  "provider": "deepinfra",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_insforge_36d3617740",
+  "status": "fail",
+  "stages": {
+    "discovery": false,
+    "connect": true,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 24,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": false,
+    "native_entrypoint_observed": false,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "direct-success"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 0,
+    "recovered_rows": 0,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 70186,
+    "total_duration_ms": 70186,
+    "first_action_latency_ms": 1137,
+    "transcript_event_count": 1207
+  },
+  "route": {
+    "entries": 25,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.0234697
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_insforge_36d3617740"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t2-r1/cells/insforge"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "neon",
+  "display_name": "Neon",
+  "model": "thinkingmachines/inkling-small",
+  "provider": "deepinfra",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_neon_7b8933545a",
+  "status": "pass",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": true,
+    "recovery": true
+  },
+  "discovery": {
+    "commands": 27,
+    "searches": 0,
+    "fetched_urls": 9,
+    "transcript_invalid_lines": 0,
+    "help_inspected": false,
+    "official_source_observed": false,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "direct-success"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 1,
+    "recovered_rows": 1,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 60645,
+    "total_duration_ms": 60645,
+    "first_action_latency_ms": 1204,
+    "transcript_event_count": 1250
+  },
+  "route": {
+    "entries": 27,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.022520000000000002
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_neon_7b8933545a"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t2-r1/cells/neon"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "nile",
+  "display_name": "Nile",
+  "model": "thinkingmachines/inkling-small",
+  "provider": "deepinfra",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_nile_018f73cea0",
+  "status": "fail",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 26,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 0,
+    "recovered_rows": 0,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": false,
+    "validity_status": "trace_invalid",
+    "timed_out": false,
+    "duration_ms": 179950,
+    "total_duration_ms": 179950,
+    "first_action_latency_ms": 1279,
+    "transcript_event_count": 1425
+  },
+  "route": {
+    "entries": 28,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.028272749999999996
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_nile_018f73cea0"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t2-r1/cells/nile"
+}
+{
+  "schema": "ax.daeb-v2-4-native-observation/v1",
+  "vendor": "supabase",
+  "display_name": "Supabase",
+  "model": "thinkingmachines/inkling-small",
+  "provider": "deepinfra",
+  "harness": "pi",
+  "trial": 2,
+  "namespace": "v22_supabase_f0b8417cf7",
+  "status": "fail",
+  "stages": {
+    "discovery": true,
+    "connect": true,
+    "operate": false,
+    "recovery": false
+  },
+  "discovery": {
+    "commands": 30,
+    "searches": 0,
+    "fetched_urls": 0,
+    "transcript_invalid_lines": 0,
+    "help_inspected": true,
+    "official_source_observed": true,
+    "native_entrypoint_observed": true,
+    "data_connection_env_observed": true,
+    "stale_target_attempted": true,
+    "discovery_mode": "assisted-discovery"
+  },
+  "world_state": {
+    "connection_ok": true,
+    "total_rows": 3,
+    "active_rows": 2,
+    "alpha_rows": 0,
+    "recovered_rows": 0,
+    "primary_constraints": 1,
+    "unique_constraints": 1
+  },
+  "invocation": {
+    "ok": true,
+    "validity_status": "valid",
+    "timed_out": false,
+    "duration_ms": 58684,
+    "total_duration_ms": 58684,
+    "first_action_latency_ms": 1256,
+    "transcript_event_count": 1609
+  },
+  "route": {
+    "entries": 36,
+    "upstream_errors": 0,
+    "mismatch": false,
+    "reported_cost_usd": 0.0345791
+  },
+  "cleanup": {
+    "attempted": true,
+    "success": true,
+    "detail": "dropped exact relation axarena_native_journey_v22_supabase_f0b8417cf7"
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-j01-t2-r1/cells/supabase"
+}
