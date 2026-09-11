@@ -92,7 +92,7 @@
     "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "@opentelemetry/auto-instrumentations-node": "^0.77.0",
