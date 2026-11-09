@@ -5,7 +5,7 @@
   "description": "Exact host-agent CLI closure for trusted AXArena runs.",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/claude-code": "2.1.217",
+    "@anthropic-ai/claude-code": "2.1.251",
     "@openai/codex": "0.145.0"
   }
 }
